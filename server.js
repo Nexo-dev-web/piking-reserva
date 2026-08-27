@@ -1,12 +1,15 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import fs from "node:fs";
+import { execFile } from "node:child_process";
 import express from "express";
 import XLSX from "xlsx";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3333);
-const PLANILHA = process.env.WMS_GERAL_PATH || path.resolve(__dirname, "..", "WMS_GERAL 09-05.xlsm");
+const CONFIG_DIR = path.join(__dirname, "data");
+const CONFIG_FILE = path.join(CONFIG_DIR, "config.json");
+const DEFAULT_PLANILHA = path.resolve(__dirname, "..", "WMS_GERAL 09-05.xlsm");
 const ABA = "WMS_GERAL";
 const FILTROS = {
   galpao: "OD_RJ",
@@ -14,6 +17,28 @@ const FILTROS = {
   descricaoContem: "INK",
   quantidadeDisponivelMenorQue: 10
 };
+
+function configPadrao() {
+  return {
+    planilhaPath: process.env.WMS_GERAL_PATH || DEFAULT_PLANILHA,
+    intervaloMinutos: 5,
+    atualizarExcelAntesDeLer: false
+  };
+}
+
+function lerConfig() {
+  if (!fs.existsSync(CONFIG_FILE)) return configPadrao();
+  try {
+    return { ...configPadrao(), ...JSON.parse(fs.readFileSync(CONFIG_FILE, "utf8")) };
+  } catch {
+    return configPadrao();
+  }
+}
+
+function salvarConfig(config) {
+  fs.mkdirSync(CONFIG_DIR, { recursive: true });
+  fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+}
 
 function txt(valor) {
   return String(valor ?? "").trim();
@@ -29,14 +54,45 @@ function contem(valor, trecho) {
   return txt(valor).toUpperCase().includes(txt(trecho).toUpperCase());
 }
 
+function coluna(linha, ...nomes) {
+  for (const nome of nomes) {
+    if (Object.prototype.hasOwnProperty.call(linha, nome)) return linha[nome];
+  }
+  return "";
+}
+
+function normalizarItem(linha, index) {
+  return {
+    linhaExcel: index + 2,
+    endereco: txt(coluna(linha, "ENDEREÇO", "ENDERECO", "ENDEREÃ‡O")),
+    galpao: txt(coluna(linha, "GALPÃO", "GALPAO", "GALPÃƒO")),
+    tipoEnd: txt(linha.TIPO_END),
+    caixa: txt(linha.CAIXA),
+    produto: txt(linha.PRODUTO),
+    descProduto: txt(linha.DESC_PRODUTO),
+    cor: txt(linha.COR),
+    tamanho: txt(linha.TAMANHO),
+    grade: txt(linha.GRADE),
+    quantidadeEstoque: num(linha.QUANTIDADEESTOQUE),
+    quantidadeReservada: num(linha.QUANTIDADERESERVADA),
+    quantidadeDisponivel: num(linha.QUANTIDADEDISPONIVEL),
+    prodcor: txt(linha.PRODCOR),
+    txt: txt(linha.Txt)
+  };
+}
+
 function lerWms() {
-  if (!fs.existsSync(PLANILHA)) {
-    const erro = new Error(`Planilha nao encontrada: ${PLANILHA}`);
+  const config = lerConfig();
+  const planilha = config.planilhaPath;
+
+  if (!fs.existsSync(planilha)) {
+    const erro = new Error(`Planilha nao encontrada: ${planilha}`);
     erro.status = 404;
     throw erro;
   }
 
-  const workbook = XLSX.readFile(PLANILHA, { cellDates: false });
+  const stat = fs.statSync(planilha);
+  const workbook = XLSX.readFile(planilha, { cellDates: false });
   const sheet = workbook.Sheets[ABA];
   if (!sheet) {
     const erro = new Error(`Aba ${ABA} nao encontrada.`);
@@ -46,23 +102,7 @@ function lerWms() {
 
   const linhas = XLSX.utils.sheet_to_json(sheet, { defval: "", raw: false });
   const itens = linhas
-    .map((linha, index) => ({
-      linhaExcel: index + 2,
-      endereco: txt(linha["ENDEREÇO"]),
-      galpao: txt(linha["GALPÃO"]),
-      tipoEnd: txt(linha.TIPO_END),
-      caixa: txt(linha.CAIXA),
-      produto: txt(linha.PRODUTO),
-      descProduto: txt(linha.DESC_PRODUTO),
-      cor: txt(linha.COR),
-      tamanho: txt(linha.TAMANHO),
-      grade: txt(linha.GRADE),
-      quantidadeEstoque: num(linha.QUANTIDADEESTOQUE),
-      quantidadeReservada: num(linha.QUANTIDADERESERVADA),
-      quantidadeDisponivel: num(linha.QUANTIDADEDISPONIVEL),
-      prodcor: txt(linha.PRODCOR),
-      txt: txt(linha.Txt)
-    }))
+    .map(normalizarItem)
     .filter(item =>
       item.galpao === FILTROS.galpao &&
       item.tipoEnd === FILTROS.tipoEnd &&
@@ -111,10 +151,12 @@ function lerWms() {
   }));
 
   return {
-    arquivo: PLANILHA,
+    arquivo: planilha,
     aba: ABA,
     atualizadoEm: new Date().toISOString(),
+    arquivoModificadoEm: stat.mtime.toISOString(),
     filtros: FILTROS,
+    config,
     totalLinhasPlanilha: linhas.length,
     totalItens: itens.length,
     totalProdcor: resumo.length,
@@ -122,12 +164,86 @@ function lerWms() {
   };
 }
 
+function atualizarExcel(planilha) {
+  return new Promise((resolve, reject) => {
+    if (process.platform !== "win32") {
+      reject(new Error("Atualizacao automatica do Excel so esta disponivel no Windows."));
+      return;
+    }
+
+    const caminho = JSON.stringify(planilha);
+    const comando = `
+$ErrorActionPreference = 'Stop'
+$excel = New-Object -ComObject Excel.Application
+$excel.Visible = $false
+$excel.DisplayAlerts = $false
+$workbook = $null
+try {
+  $workbook = $excel.Workbooks.Open(${caminho})
+  $workbook.RefreshAll()
+  $excel.CalculateUntilAsyncQueriesDone()
+  Start-Sleep -Seconds 5
+  $workbook.Save()
+  $workbook.Close($true)
+} finally {
+  if ($workbook -ne $null) { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($workbook) | Out-Null }
+  $excel.Quit()
+  [System.Runtime.InteropServices.Marshal]::ReleaseComObject($excel) | Out-Null
+  [GC]::Collect()
+  [GC]::WaitForPendingFinalizers()
+}`;
+
+    execFile("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", comando], {
+      windowsHide: true,
+      timeout: 180000
+    }, (erro, stdout, stderr) => {
+      if (erro) {
+        reject(new Error(stderr || erro.message));
+        return;
+      }
+      resolve(stdout);
+    });
+  });
+}
+
 const app = express();
 
+app.use(express.json({ limit: "64kb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
-app.get("/api/wms/baixo-estoque", (_req, res, next) => {
+app.get("/api/config", (_req, res) => {
+  res.json(lerConfig());
+});
+
+app.post("/api/config", (req, res) => {
+  const planilhaPath = txt(req.body?.planilhaPath);
+  const intervaloMinutos = Math.max(1, Math.min(1440, Number(req.body?.intervaloMinutos) || 5));
+  const atualizarExcelAntesDeLer = Boolean(req.body?.atualizarExcelAntesDeLer);
+
+  if (!planilhaPath) {
+    res.status(400).json({ erro: "Informe o caminho da planilha." });
+    return;
+  }
+
+  const config = { planilhaPath, intervaloMinutos, atualizarExcelAntesDeLer };
+  salvarConfig(config);
+  res.json(config);
+});
+
+app.post("/api/wms/atualizar-planilha", async (_req, res, next) => {
   try {
+    const config = lerConfig();
+    await atualizarExcel(config.planilhaPath);
+    res.json({ ok: true, atualizadoEm: new Date().toISOString() });
+  } catch (erro) {
+    next(erro);
+  }
+});
+
+app.get("/api/wms/baixo-estoque", async (_req, res, next) => {
+  try {
+    const config = lerConfig();
+    if (config.atualizarExcelAntesDeLer) await atualizarExcel(config.planilhaPath);
     res.json(lerWms());
   } catch (erro) {
     next(erro);
@@ -139,6 +255,7 @@ app.use((erro, _req, res, _next) => {
 });
 
 app.listen(PORT, () => {
+  const config = lerConfig();
   console.log(`WMS web em http://localhost:${PORT}`);
-  console.log(`Planilha: ${PLANILHA}`);
+  console.log(`Planilha: ${config.planilhaPath}`);
 });

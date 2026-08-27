@@ -3,100 +3,125 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>WMS Geral - Baixo Estoque</title>
+    <title>AR&CO WMS - Radar de Ruptura</title>
     <link rel="stylesheet" href="/styles.css" />
-    <script src="/app.js" defer></script>
+    <script src="/app.js" type="module"></script>
   </head>
   <body>
     <main class="page">
-      <header class="top">
+      <header class="topbar">
         <img class="brand" src="/assets/arco-logo-transparente.png" alt="AR&CO" />
-        <div class="headline">
-          <p class="tag">WMS_GERAL</p>
-          <h1>Radar de ruptura RJ E4AC</h1>
-          <p class="sub">INK com disponibilidade abaixo de 10, agrupado por PRODCOR e detalhado por caixa, tamanho, grade e endereco.</p>
+        <div class="update-strip">
+          <span id="sync-state">Carregando</span>
+          <strong id="last-update">Ultima atualizacao: -</strong>
+          <small id="file-update">Arquivo: -</small>
         </div>
-        <div class="top-actions">
-          <span id="file-status">Aguardando leitura</span>
-          <button id="refresh" type="button">Atualizar</button>
+        <div class="actions">
+          <button id="refresh-excel" type="button" class="secondary">Atualizar Excel</button>
+          <button id="refresh" type="button">Ler agora</button>
         </div>
       </header>
 
-      <section class="metrics">
-        <article>
-          <span>PRODCOR em risco</span>
-          <strong id="m-prodcor">-</strong>
-          <small>referencias distintas</small>
-        </article>
-        <article>
-          <span>Pontos criticos</span>
-          <strong id="m-itens">-</strong>
-          <small>caixas abaixo de 10</small>
-        </article>
-        <article>
+      <section class="hero">
+        <div class="hero-main">
+          <p class="tag">Radar de ruptura - RJ E4AC / INK</p>
+          <h1 id="hero-title">- itens para acabar</h1>
+          <p id="hero-subtitle">Analisando disponibilidade abaixo de 10 por PRODCOR.</p>
+        </div>
+        <div class="hero-gauge" aria-label="Distribuicao de risco">
+          <div class="gauge-number" id="gauge-number">-</div>
+          <div class="gauge-label">PRODCOR em ruptura iminente</div>
+          <div id="risk-stack" class="risk-stack"></div>
+        </div>
+      </section>
+
+      <section class="signal-grid">
+        <article class="signal rupture">
           <span>Ruptura iminente</span>
           <strong id="m-ruptura">-</strong>
-          <small>menor disponibilidade ate 2</small>
+          <small>menor disponivel ate 2</small>
         </article>
-        <article>
-          <span>Atualizado</span>
-          <strong id="m-data">-</strong>
+        <article class="signal critical">
+          <span>Critico</span>
+          <strong id="m-critico">-</strong>
+          <small>menor disponivel de 3 a 5</small>
+        </article>
+        <article class="signal attention">
+          <span>Atencao</span>
+          <strong id="m-atencao">-</strong>
+          <small>menor disponivel de 6 a 9</small>
+        </article>
+        <article class="signal neutral">
+          <span>Linhas criticas</span>
+          <strong id="m-itens">-</strong>
           <small id="m-total">- linhas lidas</small>
         </article>
       </section>
 
-      <section class="insight-grid">
-        <article class="panel risk-panel">
+      <section class="focus-layout">
+        <article class="panel hotlist-panel">
           <div class="panel-head">
             <div>
-              <p class="tag">Prioridade</p>
-              <h2>Tendencia de estourar</h2>
+              <p class="tag">Bater o olho</p>
+              <h2>O que esta mais perto de acabar</h2>
             </div>
-            <span class="pill">Menor disponivel por PRODCOR</span>
+            <span id="filter-summary" class="pill">OD_RJ / E4AC / INK / abaixo de 10</span>
           </div>
-          <div id="risk-chart" class="risk-chart"></div>
+          <div id="hotlist" class="hotlist"></div>
         </article>
 
-        <article class="panel">
-          <div class="panel-head">
-            <div>
-              <p class="tag">Ranking</p>
-              <h2>Top referencias sob pressao</h2>
+        <aside class="side-panels">
+          <article class="panel">
+            <div class="panel-head compact">
+              <div>
+                <p class="tag">Endereco</p>
+                <h2>Maior concentracao</h2>
+              </div>
             </div>
-          </div>
-          <div id="top-risk" class="rank-list"></div>
-        </article>
+            <div id="address-chart" class="bar-chart"></div>
+          </article>
 
-        <article class="panel">
-          <div class="panel-head">
-            <div>
-              <p class="tag">Endereco</p>
-              <h2>Locais com mais alerta</h2>
+          <article class="panel">
+            <div class="panel-head compact">
+              <div>
+                <p class="tag">Grade</p>
+                <h2>Grade mais sensivel</h2>
+              </div>
             </div>
-          </div>
-          <div id="address-chart" class="bar-chart"></div>
-        </article>
-
-        <article class="panel">
-          <div class="panel-head">
-            <div>
-              <p class="tag">Grade</p>
-              <h2>Distribuicao do risco</h2>
-            </div>
-          </div>
-          <div id="grade-chart" class="bar-chart"></div>
-        </article>
+            <div id="grade-chart" class="bar-chart"></div>
+          </article>
+        </aside>
       </section>
+
+      <details class="config-card">
+        <summary>Configurar origem da planilha e intervalo</summary>
+        <form id="config-form" class="config-form">
+          <label>
+            Caminho da planilha na rede ou no computador
+            <input id="planilha-path" name="planilhaPath" type="text" autocomplete="off" />
+          </label>
+          <label>
+            Buscar a cada quantos minutos
+            <input id="intervalo-minutos" name="intervaloMinutos" type="number" min="1" max="1440" step="1" />
+          </label>
+          <label class="check">
+            <input id="atualizar-excel-antes" name="atualizarExcelAntesDeLer" type="checkbox" />
+            <span>Abrir Excel, atualizar conexoes, salvar e fechar antes de ler</span>
+          </label>
+          <button type="submit">Salvar configuracao</button>
+          <p id="config-message"></p>
+        </form>
+      </details>
 
       <section class="filters">
         <label>
-          Buscar
+          Buscar detalhe
           <input id="search" type="search" placeholder="PRODCOR, produto, caixa, endereco, tamanho..." />
         </label>
         <label>
-          Ordenar
+          Ordenar detalhe
           <select id="sort">
-            <option value="menor">Menor quantidade</option>
+            <option value="menor">Maior risco</option>
             <option value="prodcor">PRODCOR</option>
             <option value="caixas">Mais caixas</option>
           </select>
