@@ -53,9 +53,9 @@ button { cursor: pointer; }
 }
 
 .setup-logo {
-  width: 168px;
-  height: auto;
-  padding: 8px 10px;
+  height: 42px;
+  width: auto;
+  padding: 10px 14px;
   border-radius: 8px;
   background: #fff;
 }
@@ -68,10 +68,9 @@ button { cursor: pointer; }
 }
 
 .brand {
-  width: 156px;
-  height: 46px;
-  object-fit: contain;
-  padding: 6px 9px;
+  height: 30px;
+  width: auto;
+  padding: 8px 12px;
   border-radius: 8px;
   background: #fff;
 }
