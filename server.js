@@ -11,17 +11,17 @@ const CONFIG_DIR = path.join(__dirname, "data");
 const CONFIG_FILE = path.join(CONFIG_DIR, "config.json");
 const DEFAULT_PLANILHA = path.resolve(__dirname, "..", "WMS_GERAL 09-05.xlsm");
 const ABA = "WMS_GERAL";
-const FILTROS = {
+const FILTROS_FIXOS = {
   galpao: "OD_RJ",
   tipoEnd: "E4AC",
-  descricaoContem: "INK",
-  quantidadeDisponivelMenorQue: 10
+  descricaoContem: "INK"
 };
 
 function configPadrao() {
   return {
     planilhaPath: process.env.WMS_GERAL_PATH || DEFAULT_PLANILHA,
     intervaloMinutos: 5,
+    limiteDisponivel: 10,
     atualizarExcelAntesDeLer: false
   };
 }
@@ -54,22 +54,31 @@ function contem(valor, trecho) {
   return txt(valor).toUpperCase().includes(txt(trecho).toUpperCase());
 }
 
-function coluna(linha, ...nomes) {
-  for (const nome of nomes) {
-    if (Object.prototype.hasOwnProperty.call(linha, nome)) return linha[nome];
-  }
-  return "";
+function chave(valor) {
+  return txt(valor)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]/g, "")
+    .toUpperCase();
+}
+
+function montarLinha(headers, valores) {
+  const linha = {};
+  headers.forEach((header, index) => {
+    linha[chave(header)] = valores[index] ?? "";
+  });
+  return linha;
 }
 
 function normalizarItem(linha, index) {
   return {
     linhaExcel: index + 2,
-    endereco: txt(coluna(linha, "ENDEREÇO", "ENDERECO", "ENDEREÃ‡O")),
-    galpao: txt(coluna(linha, "GALPÃO", "GALPAO", "GALPÃƒO")),
-    tipoEnd: txt(linha.TIPO_END),
+    endereco: txt(linha.ENDERECO),
+    galpao: txt(linha.GALPAO),
+    tipoEnd: txt(linha.TIPOEND),
     caixa: txt(linha.CAIXA),
     produto: txt(linha.PRODUTO),
-    descProduto: txt(linha.DESC_PRODUTO),
+    descProduto: txt(linha.DESCPRODUTO),
     cor: txt(linha.COR),
     tamanho: txt(linha.TAMANHO),
     grade: txt(linha.GRADE),
@@ -77,13 +86,14 @@ function normalizarItem(linha, index) {
     quantidadeReservada: num(linha.QUANTIDADERESERVADA),
     quantidadeDisponivel: num(linha.QUANTIDADEDISPONIVEL),
     prodcor: txt(linha.PRODCOR),
-    txt: txt(linha.Txt)
+    txt: txt(linha.TXT)
   };
 }
 
 function lerWms() {
-  const config = lerConfig();
-  const planilha = config.planilhaPath;
+  const configAtual = lerConfig();
+  const planilha = configAtual.planilhaPath;
+  const limiteDisponivel = Math.max(0, Number(configAtual.limiteDisponivel) || 10);
 
   if (!fs.existsSync(planilha)) {
     const erro = new Error(`Planilha nao encontrada: ${planilha}`);
@@ -100,14 +110,16 @@ function lerWms() {
     throw erro;
   }
 
-  const linhas = XLSX.utils.sheet_to_json(sheet, { defval: "", raw: false });
+  const matriz = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: false });
+  const headers = matriz[0] || [];
+  const linhas = matriz.slice(1).map(valores => montarLinha(headers, valores));
   const itens = linhas
     .map(normalizarItem)
     .filter(item =>
-      item.galpao === FILTROS.galpao &&
-      item.tipoEnd === FILTROS.tipoEnd &&
-      contem(item.descProduto, FILTROS.descricaoContem) &&
-      item.quantidadeDisponivel < FILTROS.quantidadeDisponivelMenorQue
+      item.galpao === FILTROS_FIXOS.galpao &&
+      item.tipoEnd === FILTROS_FIXOS.tipoEnd &&
+      contem(item.descProduto, FILTROS_FIXOS.descricaoContem) &&
+      item.quantidadeDisponivel <= limiteDisponivel
     )
     .sort((a, b) =>
       a.prodcor.localeCompare(b.prodcor, "pt-BR", { numeric: true }) ||
@@ -155,8 +167,8 @@ function lerWms() {
     aba: ABA,
     atualizadoEm: new Date().toISOString(),
     arquivoModificadoEm: stat.mtime.toISOString(),
-    filtros: FILTROS,
-    config,
+    filtros: { ...FILTROS_FIXOS, limiteDisponivel },
+    config: { ...configAtual, limiteDisponivel },
     totalLinhasPlanilha: linhas.length,
     totalItens: itens.length,
     totalProdcor: resumo.length,
@@ -218,6 +230,7 @@ app.get("/api/config", (_req, res) => {
 app.post("/api/config", (req, res) => {
   const planilhaPath = txt(req.body?.planilhaPath);
   const intervaloMinutos = Math.max(1, Math.min(1440, Number(req.body?.intervaloMinutos) || 5));
+  const limiteDisponivel = Math.max(0, Math.min(999999, Number(req.body?.limiteDisponivel) || 10));
   const atualizarExcelAntesDeLer = Boolean(req.body?.atualizarExcelAntesDeLer);
 
   if (!planilhaPath) {
@@ -225,15 +238,15 @@ app.post("/api/config", (req, res) => {
     return;
   }
 
-  const config = { planilhaPath, intervaloMinutos, atualizarExcelAntesDeLer };
+  const config = { planilhaPath, intervaloMinutos, limiteDisponivel, atualizarExcelAntesDeLer };
   salvarConfig(config);
   res.json(config);
 });
 
 app.post("/api/wms/atualizar-planilha", async (_req, res, next) => {
   try {
-    const config = lerConfig();
-    await atualizarExcel(config.planilhaPath);
+    const configAtual = lerConfig();
+    await atualizarExcel(configAtual.planilhaPath);
     res.json({ ok: true, atualizadoEm: new Date().toISOString() });
   } catch (erro) {
     next(erro);
@@ -242,8 +255,8 @@ app.post("/api/wms/atualizar-planilha", async (_req, res, next) => {
 
 app.get("/api/wms/baixo-estoque", async (_req, res, next) => {
   try {
-    const config = lerConfig();
-    if (config.atualizarExcelAntesDeLer) await atualizarExcel(config.planilhaPath);
+    const configAtual = lerConfig();
+    if (configAtual.atualizarExcelAntesDeLer) await atualizarExcel(configAtual.planilhaPath);
     res.json(lerWms());
   } catch (erro) {
     next(erro);
@@ -255,7 +268,7 @@ app.use((erro, _req, res, _next) => {
 });
 
 app.listen(PORT, () => {
-  const config = lerConfig();
+  const configAtual = lerConfig();
   console.log(`WMS web em http://localhost:${PORT}`);
-  console.log(`Planilha: ${config.planilhaPath}`);
+  console.log(`Planilha: ${configAtual.planilhaPath}`);
 });

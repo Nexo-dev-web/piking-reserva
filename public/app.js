@@ -3,6 +3,7 @@ const state = {
   config: null,
   busca: "",
   ordem: "menor",
+  riscoFiltro: "all",
   timer: null
 };
 
@@ -24,10 +25,12 @@ const el = {
   hotlist: document.querySelector("#hotlist"),
   addressChart: document.querySelector("#address-chart"),
   gradeChart: document.querySelector("#grade-chart"),
+  filterSummary: document.querySelector("#filter-summary"),
   configForm: document.querySelector("#config-form"),
   configMessage: document.querySelector("#config-message"),
   planilhaPath: document.querySelector("#planilha-path"),
   intervaloMinutos: document.querySelector("#intervalo-minutos"),
+  limiteDisponivel: document.querySelector("#limite-disponivel"),
   atualizarExcelAntes: document.querySelector("#atualizar-excel-antes"),
   search: document.querySelector("#search"),
   sort: document.querySelector("#sort"),
@@ -47,10 +50,7 @@ function esc(valor) {
 
 function fmtData(iso) {
   if (!iso) return "-";
-  return new Intl.DateTimeFormat("pt-BR", {
-    dateStyle: "short",
-    timeStyle: "short"
-  }).format(new Date(iso));
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(iso));
 }
 
 function riscoGrupo(grupo) {
@@ -69,6 +69,17 @@ function todosItens(grupos) {
   return grupos.flatMap(grupo => grupo.itens || []);
 }
 
+function gruposPrioridade() {
+  return [...state.grupos].sort((a, b) => {
+    const riscoA = riscoGrupo(a);
+    const riscoB = riscoGrupo(b);
+    return riscoB.peso - riscoA.peso ||
+      a.menorDisponivel - b.menorDisponivel ||
+      b.caixas - a.caixas ||
+      a.prodcor.localeCompare(b.prodcor, "pt-BR", { numeric: true });
+  });
+}
+
 function topMapa(itens, chave, limite = 6) {
   const mapa = new Map();
   for (const item of itens) {
@@ -79,17 +90,6 @@ function topMapa(itens, chave, limite = 6) {
     .map(([label, valor]) => ({ label, valor }))
     .sort((a, b) => b.valor - a.valor || a.label.localeCompare(b.label, "pt-BR", { numeric: true }))
     .slice(0, limite);
-}
-
-function gruposPrioridade() {
-  return [...state.grupos].sort((a, b) => {
-    const riscoA = riscoGrupo(a);
-    const riscoB = riscoGrupo(b);
-    return riscoB.peso - riscoA.peso ||
-      a.menorDisponivel - b.menorDisponivel ||
-      b.caixas - a.caixas ||
-      a.prodcor.localeCompare(b.prodcor, "pt-BR", { numeric: true });
-  });
 }
 
 function renderStack(contagem) {
@@ -106,26 +106,26 @@ function renderStack(contagem) {
 }
 
 function renderHotlist() {
-  const top = gruposPrioridade().slice(0, 6);
+  const top = gruposPrioridade().slice(0, 8);
   el.hotlist.innerHTML = top.map((grupo, index) => {
     const risco = riscoGrupo(grupo);
-    const enderecos = (grupo.enderecos || []).slice(0, 3).join(" / ");
+    const enderecos = (grupo.enderecos || []).join(" / ");
     return `
-      <article class="hot-item ${risco.nivel}">
-        <div class="hot-index">${index + 1}</div>
-        <div class="hot-main">
-          <div class="hot-line">
+      <button class="hot-item ${risco.nivel}" type="button" data-prodcor-link="${esc(grupo.prodcor)}">
+        <span class="hot-index">${index + 1}</span>
+        <span class="hot-main">
+          <span class="hot-line">
             <strong>${esc(grupo.prodcor)}</strong>
-            <span>${esc(risco.label)}</span>
-          </div>
-          <p>${esc(grupo.descProduto)}</p>
-          <small>${esc(enderecos || "-")} - Tam ${esc((grupo.tamanhos || []).join(", ") || "-")} - Grade ${esc((grupo.grades || []).join(", ") || "-")}</small>
-        </div>
-        <div class="hot-number">
+            <em>${esc(risco.label)}</em>
+          </span>
+          <span class="hot-desc">${esc(grupo.descProduto)}</span>
+          <span class="hot-meta">${esc(enderecos || "-")} | Tam ${esc((grupo.tamanhos || []).join(", ") || "-")} | Grade ${esc((grupo.grades || []).join(", ") || "-")} | ${esc(grupo.caixas)} caixas</span>
+        </span>
+        <span class="hot-number">
           <b>${esc(grupo.menorDisponivel)}</b>
-          <span>menor disp.</span>
-        </div>
-      </article>
+          <small>menor disp.</small>
+        </span>
+      </button>
     `;
   }).join("");
 }
@@ -135,11 +135,11 @@ function renderBars(container, dados) {
   container.innerHTML = dados.map(item => {
     const pct = Math.max(8, Math.round((item.valor / maior) * 100));
     return `
-      <div class="bar-row">
+      <button class="bar-row" type="button" data-search="${esc(item.label)}">
         <span>${esc(item.label)}</span>
-        <div class="bar-track"><i style="width:${pct}%"></i></div>
-        <b>${esc(item.valor)}</b>
-      </div>
+        <i><b style="width:${pct}%"></b></i>
+        <strong>${esc(item.valor)}</strong>
+      </button>
     `;
   }).join("");
 }
@@ -159,8 +159,12 @@ function textoBusca(grupo) {
 
 function gruposFiltrados() {
   const termo = state.busca.trim().toUpperCase();
-  const grupos = termo ? state.grupos.filter(grupo => textoBusca(grupo).includes(termo)) : [...state.grupos];
-  return grupos.sort((a, b) => {
+  const porBusca = termo ? state.grupos.filter(grupo => textoBusca(grupo).includes(termo)) : [...state.grupos];
+  const porRisco = state.riscoFiltro === "all"
+    ? porBusca
+    : porBusca.filter(grupo => riscoGrupo(grupo).nivel === state.riscoFiltro);
+
+  return porRisco.sort((a, b) => {
     const riscoA = riscoGrupo(a);
     const riscoB = riscoGrupo(b);
     if (state.ordem === "prodcor") return a.prodcor.localeCompare(b.prodcor, "pt-BR", { numeric: true });
@@ -172,13 +176,13 @@ function gruposFiltrados() {
 function linha(item) {
   return `
     <tr>
-      <td>${esc(item.endereco)}</td>
-      <td>${esc(item.caixa)}</td>
+      <td class="strong">${esc(item.endereco)}</td>
+      <td class="strong">${esc(item.caixa)}</td>
       <td>${esc(item.produto)}</td>
       <td>${esc(item.descProduto)}</td>
       <td>${esc(item.cor)}</td>
-      <td>${esc(item.tamanho)}</td>
-      <td>${esc(item.grade)}</td>
+      <td class="strong">${esc(item.tamanho)}</td>
+      <td class="strong">${esc(item.grade)}</td>
       <td class="num">${esc(item.quantidadeEstoque)}</td>
       <td class="num">${esc(item.quantidadeReservada)}</td>
       <td class="num danger">${esc(item.quantidadeDisponivel)}</td>
@@ -191,7 +195,7 @@ function renderGroups() {
   if (!grupos.length) {
     el.groups.innerHTML = "";
     el.status.hidden = false;
-    el.status.textContent = state.grupos.length ? "Nenhum resultado para essa busca." : "Nenhuma peca abaixo de 10 encontrada.";
+    el.status.textContent = state.grupos.length ? "Nenhum resultado para esse filtro." : "Nenhuma peca encontrada no limite configurado.";
     return;
   }
 
@@ -199,13 +203,14 @@ function renderGroups() {
   el.groups.innerHTML = grupos.map((grupo, index) => {
     const risco = riscoGrupo(grupo);
     return `
-      <article class="group ${risco.nivel}">
+      <article class="group ${risco.nivel}" data-prodcor="${esc(grupo.prodcor)}">
         <details ${index < 2 ? "open" : ""}>
           <summary>
             <div>
               <span class="badge ${risco.nivel}">${risco.label}</span>
               <strong>${esc(grupo.prodcor)}</strong>
               <small>${esc(grupo.descProduto)}</small>
+              <small>${esc((grupo.enderecos || []).join(" / "))}</small>
             </div>
             <dl>
               <div><dt>Menor</dt><dd>${esc(grupo.menorDisponivel)}</dd></div>
@@ -245,7 +250,7 @@ function render(dados) {
 
   el.heroTitle.textContent = `${contagem.rupture} itens para acabar`;
   el.heroSubtitle.textContent = primeiro
-    ? `Mais urgente: ${primeiro.prodcor} com menor disponivel ${primeiro.menorDisponivel}.`
+    ? `Mais urgente: ${primeiro.prodcor} com menor disponivel ${primeiro.menorDisponivel}. Clique nos cards para abrir a peca.`
     : "Nenhum item em risco com os filtros atuais.";
   el.gaugeNumber.textContent = contagem.rupture;
   el.ruptura.textContent = contagem.rupture;
@@ -255,6 +260,7 @@ function render(dados) {
   el.total.textContent = `${dados.totalLinhasPlanilha} linhas lidas`;
   el.lastUpdate.textContent = `Ultima leitura: ${fmtData(dados.atualizadoEm)}`;
   el.fileUpdate.textContent = `Arquivo salvo em: ${fmtData(dados.arquivoModificadoEm)}`;
+  el.filterSummary.textContent = `${dados.filtros.galpao} / ${dados.filtros.tipoEnd} / ${dados.filtros.descricaoContem} / disponivel <= ${dados.config.limiteDisponivel}`;
 
   renderStack(contagem);
   renderHotlist();
@@ -267,6 +273,7 @@ function aplicarConfig(config) {
   state.config = config;
   el.planilhaPath.value = config.planilhaPath || "";
   el.intervaloMinutos.value = config.intervaloMinutos || 5;
+  el.limiteDisponivel.value = config.limiteDisponivel ?? 10;
   el.atualizarExcelAntes.checked = Boolean(config.atualizarExcelAntesDeLer);
 
   if (state.timer) clearInterval(state.timer);
@@ -276,8 +283,7 @@ function aplicarConfig(config) {
 
 async function carregarConfig() {
   const resposta = await fetch("/api/config", { cache: "no-store" });
-  const config = await resposta.json();
-  aplicarConfig(config);
+  aplicarConfig(await resposta.json());
 }
 
 async function carregar(manual = true) {
@@ -310,6 +316,7 @@ async function salvarConfiguracao(event) {
   const payload = {
     planilhaPath: el.planilhaPath.value.trim(),
     intervaloMinutos: Number(el.intervaloMinutos.value) || 5,
+    limiteDisponivel: Number(el.limiteDisponivel.value) || 10,
     atualizarExcelAntesDeLer: el.atualizarExcelAntes.checked
   };
 
@@ -346,6 +353,29 @@ async function atualizarExcel() {
   }
 }
 
+function ativarFiltroRisco(valor, botao) {
+  state.riscoFiltro = valor;
+  document.querySelectorAll("[data-risk-filter]").forEach(item => item.classList.remove("active"));
+  if (botao) botao.classList.add("active");
+  renderGroups();
+  el.groups.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function buscarEExpandir(valor) {
+  state.busca = valor;
+  state.riscoFiltro = "all";
+  el.search.value = valor;
+  document.querySelectorAll("[data-risk-filter]").forEach(item => item.classList.remove("active"));
+  renderGroups();
+  const alvo = document.querySelector(`[data-prodcor="${CSS.escape(valor)}"] details`);
+  if (alvo) {
+    alvo.open = true;
+    alvo.scrollIntoView({ behavior: "smooth", block: "start" });
+  } else {
+    el.groups.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+
 el.refresh.addEventListener("click", () => carregar(true));
 el.refreshExcel.addEventListener("click", atualizarExcel);
 el.configForm.addEventListener("submit", salvarConfiguracao);
@@ -356,6 +386,19 @@ el.search.addEventListener("input", event => {
 el.sort.addEventListener("change", event => {
   state.ordem = event.target.value;
   renderGroups();
+});
+document.querySelectorAll("[data-risk-filter]").forEach(botao => {
+  botao.addEventListener("click", () => ativarFiltroRisco(botao.dataset.riskFilter, botao));
+});
+el.hotlist.addEventListener("click", event => {
+  const item = event.target.closest("[data-prodcor-link]");
+  if (item) buscarEExpandir(item.dataset.prodcorLink);
+});
+document.querySelectorAll(".bar-chart").forEach(chart => {
+  chart.addEventListener("click", event => {
+    const item = event.target.closest("[data-search]");
+    if (item) buscarEExpandir(item.dataset.search);
+  });
 });
 
 await carregarConfig();
