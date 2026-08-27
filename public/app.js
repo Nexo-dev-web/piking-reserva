@@ -34,6 +34,7 @@ const el = {
   total: $("#m-total"),
   hotlist: $("#hotlist"),
   addressChart: $("#address-chart"),
+  colorChart: $("#color-chart"),
   gradeChart: $("#grade-chart"),
   filterSummary: $("#filter-summary"),
   configForm: $("#config-form"),
@@ -124,7 +125,7 @@ function renderHotlist() {
 function renderBars(container, dados) {
   const maior = Math.max(...dados.map(item => item.valor), 1);
   container.innerHTML = dados.map(item => `
-    <button class="bar-row" type="button" data-search="${esc(item.label)}">
+    <button class="bar-row" type="button" data-search="${esc(item.label)}" title="${esc(item.label)}">
       <span>${esc(item.label)}</span>
       <i><b style="width:${Math.max(8, Math.round((item.valor / maior) * 100))}%"></b></i>
       <strong>${esc(item.valor)}</strong>
@@ -229,6 +230,7 @@ function render(dados) {
   renderStack(contagem);
   renderHotlist();
   renderBars(el.addressChart, topMapa(itens.filter(item => item.quantidadeDisponivel <= 2), "endereco", 6));
+  renderBars(el.colorChart, topMapa(itens.filter(item => item.quantidadeDisponivel <= 2), "cor", 6));
   renderBars(el.gradeChart, topMapa(itens.filter(item => item.quantidadeDisponivel <= 2), "grade", 6));
   renderGroups();
 }

@@ -372,7 +372,7 @@ h2 { font-size: 18px; }
 .bar-chart { display: grid; gap: 8px; }
 .bar-row {
   display: grid;
-  grid-template-columns: 116px minmax(80px, 1fr) 34px;
+  grid-template-columns: minmax(170px, 1.2fr) minmax(80px, 1fr) 34px;
   align-items: center;
   gap: 9px;
   width: 100%;
@@ -383,7 +383,12 @@ h2 { font-size: 18px; }
   border: 0;
   background: transparent;
 }
-.bar-row span { overflow: hidden; font-size: 12px; font-weight: 900; text-overflow: ellipsis; white-space: nowrap; }
+.bar-row span {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.2;
+}
 .bar-row i { display: block; height: 12px; overflow: hidden; border-radius: 999px; background: #e2e5ea; }
 .bar-row i b { display: block; height: 100%; border-radius: inherit; background: var(--red); }
 .bar-row strong { text-align: right; }
