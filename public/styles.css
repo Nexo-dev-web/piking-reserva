@@ -363,6 +363,20 @@ h2 { font-size: 18px; }
 .group summary strong, .group summary small { display: block; margin-top: 5px; }
 .group summary small { overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
 
+.addr-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+.addr-chip {
+  padding: 3px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel-soft);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.addr-chip.more { color: #ff8a96; border-color: rgba(241, 18, 42, .35); background: var(--red-soft); }
+.addr-chip.empty { font-style: italic; }
+
 dl { display: grid; grid-template-columns: repeat(3, 104px); gap: 7px; margin: 0; }
 dl div { padding: 8px; border-radius: 7px; background: var(--panel-soft); text-align: center; }
 dt { color: var(--muted); font-size: 10px; font-weight: 950; text-transform: uppercase; }

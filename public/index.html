@@ -21,17 +21,17 @@
           </label>
           <div class="setup-row">
             <label>
-              Buscar a cada minutos
+              Buscar a cada quantos minutos
               <input id="setup-intervalo-minutos" type="number" min="1" max="1440" step="1" />
             </label>
             <label>
-              Limite disponivel
+              Limite disponível
               <input id="setup-limite-disponivel" type="number" min="0" max="999999" step="1" />
             </label>
           </div>
           <label class="check">
             <input id="setup-atualizar-excel-antes" type="checkbox" />
-            <span>Abrir Excel, atualizar conexoes, salvar e fechar antes de ler</span>
+            <span>Abrir Excel, atualizar conexões, salvar e fechar antes de ler</span>
           </label>
           <button type="submit">Entrar no painel</button>
           <p id="setup-message"></p>
@@ -50,7 +50,7 @@
         </div>
         <div class="update-strip">
           <span id="sync-state">Carregando</span>
-          <strong id="last-update">Ultima atualizacao: -</strong>
+          <strong id="last-update">Última atualização: -</strong>
           <small id="file-update">Arquivo: -</small>
         </div>
         <div class="actions">
@@ -72,7 +72,7 @@
             <input id="intervalo-minutos" name="intervaloMinutos" type="number" min="1" max="1440" step="1" />
           </label>
           <label>
-            Limite disponivel
+            Limite disponível
             <input id="limite-disponivel" name="limiteDisponivel" type="number" min="0" max="999999" step="1" />
           </label>
           <label class="check">
@@ -87,8 +87,8 @@
       <section class="hero">
         <div class="hero-main">
           <p class="tag">Picking Automation Radar - RJ E4AC / INK</p>
-          <h1 id="hero-title">- itens para acabar</h1>
-          <p id="hero-subtitle">Carregando as pecas mais urgentes.</p>
+          <h1 id="hero-title">- peças acabando</h1>
+          <p id="hero-subtitle">Carregando as peças mais urgentes.</p>
         </div>
         <div class="hero-gauge" aria-label="Distribuicao de risco">
           <div class="gauge-number" id="gauge-number">-</div>
@@ -104,17 +104,17 @@
           <small>precisa agir agora</small>
         </button>
         <button class="signal critical" type="button" data-risk-filter="critical">
-          <span>Critico</span>
+          <span>Crítico</span>
           <strong id="m-critico">-</strong>
           <small>acompanhar de perto</small>
         </button>
         <button class="signal attention" type="button" data-risk-filter="attention">
-          <span>Atencao</span>
+          <span>Atenção</span>
           <strong id="m-atencao">-</strong>
-          <small>baixo, mas nao e prioridade</small>
+          <small>baixo, mas não é prioridade</small>
         </button>
         <button class="signal neutral" type="button" data-risk-filter="all">
-          <span>Caixas/enderecos em alerta</span>
+          <span>Ocorrências no filtro</span>
           <strong id="m-itens">-</strong>
           <small id="m-total">- linhas lidas</small>
         </button>
@@ -136,7 +136,7 @@
           <article class="panel">
             <div class="panel-head compact">
               <div>
-                <p class="tag">Endereco</p>
+                <p class="tag">Endereço</p>
                 <h2>Maior concentracao</h2>
               </div>
             </div>
@@ -168,7 +168,7 @@
       <section class="filters">
         <label>
           Buscar detalhe
-          <input id="search" type="search" placeholder="PRODCOR, produto, caixa, endereco, tamanho..." />
+          <input id="search" type="search" placeholder="PRODCOR, produto, caixa, endereço, tamanho..." />
         </label>
         <label>
           Ordenar detalhe

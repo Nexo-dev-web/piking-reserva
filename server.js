@@ -96,7 +96,7 @@ function lerWms() {
   const limiteDisponivel = Math.max(0, Number(configAtual.limiteDisponivel) || 10);
 
   if (!fs.existsSync(planilha)) {
-    const erro = new Error(`Planilha nao encontrada: ${planilha}`);
+    const erro = new Error(`Planilha não encontrada: ${planilha}`);
     erro.status = 404;
     throw erro;
   }
@@ -105,7 +105,7 @@ function lerWms() {
   const workbook = XLSX.readFile(planilha, { cellDates: false });
   const sheet = workbook.Sheets[ABA];
   if (!sheet) {
-    const erro = new Error(`Aba ${ABA} nao encontrada.`);
+    const erro = new Error(`Aba ${ABA} não encontrada.`);
     erro.status = 404;
     throw erro;
   }
@@ -179,30 +179,41 @@ function lerWms() {
 function atualizarExcel(planilha) {
   return new Promise((resolve, reject) => {
     if (process.platform !== "win32") {
-      reject(new Error("Atualizacao automatica do Excel so esta disponivel no Windows."));
+      reject(new Error("Atualização automática do Excel só está disponível no Windows."));
       return;
     }
 
     const caminho = JSON.stringify(planilha);
     const comando = `
 $ErrorActionPreference = 'Stop'
+$origem = ${caminho}
+if (!(Test-Path -LiteralPath $origem)) { throw "Arquivo nao encontrado: $origem" }
+$temp = Join-Path $env:TEMP ("picking-wms-" + [guid]::NewGuid().ToString() + ".xlsm")
+Copy-Item -LiteralPath $origem -Destination $temp -Force
 $excel = New-Object -ComObject Excel.Application
 $excel.Visible = $false
 $excel.DisplayAlerts = $false
+$excel.AskToUpdateLinks = $false
 $workbook = $null
 try {
-  $workbook = $excel.Workbooks.Open(${caminho})
+  $workbook = $excel.Workbooks.Open($temp, 3, $false)
+  foreach ($connection in @($workbook.Connections)) {
+    try { $connection.Refresh() } catch {}
+  }
   $workbook.RefreshAll()
   $excel.CalculateUntilAsyncQueriesDone()
-  Start-Sleep -Seconds 5
+  Start-Sleep -Seconds 12
+  $excel.CalculateFullRebuild()
   $workbook.Save()
   $workbook.Close($true)
+  Copy-Item -LiteralPath $temp -Destination $origem -Force
 } finally {
   if ($workbook -ne $null) { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($workbook) | Out-Null }
   $excel.Quit()
   [System.Runtime.InteropServices.Marshal]::ReleaseComObject($excel) | Out-Null
   [GC]::Collect()
   [GC]::WaitForPendingFinalizers()
+  if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue }
 }`;
 
     execFile("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", comando], {
@@ -261,7 +272,7 @@ app.get("/api/wms/baixo-estoque", async (_req, res, next) => {
       try {
         await atualizarExcel(configAtual.planilhaPath);
       } catch (erro) {
-        avisoAtualizacaoExcel = `Excel nao atualizou. Lendo a ultima versao salva. ${erro.message}`;
+        avisoAtualizacaoExcel = `Excel não atualizou. Lendo a última versão salva. ${erro.message}`;
       }
     }
     res.json({ ...lerWms(), avisoAtualizacaoExcel });

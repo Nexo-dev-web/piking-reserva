@@ -63,7 +63,7 @@ function fmtData(iso) {
 
 function riscoGrupo(grupo) {
   if (grupo.menorDisponivel <= 2) return { nivel: "rupture", label: "Acabando agora", peso: 3 };
-  if (grupo.menorDisponivel <= 5) return { nivel: "critical", label: "Critico", peso: 2 };
+  if (grupo.menorDisponivel <= 5) return { nivel: "critical", label: "Crítico", peso: 2 };
   return { nivel: "attention", label: "Baixo", peso: 1 };
 }
 
@@ -117,7 +117,7 @@ function renderHotlist() {
           <span class="hot-desc">${esc(grupo.descProduto)}</span>
           <span class="hot-meta">${esc((grupo.enderecos || []).join(" / ") || "-")} | Tam ${esc((grupo.tamanhos || []).join(", ") || "-")} | Grade ${esc((grupo.grades || []).join(", ") || "-")}</span>
         </span>
-        <span class="hot-number"><b>${esc(grupo.menorDisponivel)}</b><small>disp. minima</small></span>
+        <span class="hot-number"><b>${esc(grupo.menorDisponivel)}</b><small>disp. mínima</small></span>
       </button>
     `;
   }).join("");
@@ -155,6 +155,15 @@ function gruposFiltrados() {
   });
 }
 
+function renderAddrChips(enderecos, limite = 4) {
+  const lista = enderecos || [];
+  if (!lista.length) return `<span class="addr-chip empty">Sem endereço</span>`;
+  const visiveis = lista.slice(0, limite).map(end => `<span class="addr-chip">${esc(end)}</span>`).join("");
+  const restante = lista.length - limite;
+  const extra = restante > 0 ? `<span class="addr-chip more">+${restante} local${restante > 1 ? "is" : ""}</span>` : "";
+  return visiveis + extra;
+}
+
 function linha(item) {
   return `
     <tr>
@@ -177,7 +186,7 @@ function renderGroups() {
   if (!grupos.length) {
     el.groups.innerHTML = "";
     el.status.hidden = false;
-    el.status.textContent = state.grupos.length ? "Nenhum resultado para esse filtro." : "Nenhuma peca encontrada no limite configurado.";
+    el.status.textContent = state.grupos.length ? "Nenhum resultado para esse filtro." : "Nenhuma peça encontrada no limite configurado.";
     return;
   }
 
@@ -192,17 +201,17 @@ function renderGroups() {
               <span class="badge ${risco.nivel}">${risco.label}</span>
               <strong>${esc(grupo.prodcor)}</strong>
               <small>${esc(grupo.descProduto)}</small>
-              <small>${esc((grupo.enderecos || []).join(" / "))}</small>
+              <div class="addr-chips">${renderAddrChips(grupo.enderecos)}</div>
             </div>
             <dl>
-              <div><dt>Disp. minima</dt><dd>${esc(grupo.menorDisponivel)}</dd></div>
+              <div><dt>Disp. mínima</dt><dd>${esc(grupo.menorDisponivel)}</dd></div>
               <div><dt>Qtd. linhas</dt><dd>${esc(grupo.caixas)}</dd></div>
-              <div><dt>Enderecos</dt><dd>${esc((grupo.enderecos || []).length)}</dd></div>
+              <div><dt>Endereços</dt><dd>${esc((grupo.enderecos || []).length)}</dd></div>
             </dl>
           </summary>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Endereco</th><th>Caixa</th><th>Produto</th><th>Descricao</th><th>Cor</th><th>Tamanho</th><th>Grade</th><th>Estoque</th><th>Reservada</th><th>Disponivel</th></tr></thead>
+              <thead><tr><th>Endereço</th><th>Caixa</th><th>Produto</th><th>Descrição</th><th>Cor</th><th>Tamanho</th><th>Grade</th><th>Estoque</th><th>Reservada</th><th>Disponível</th></tr></thead>
               <tbody>${grupo.itens.map(linha).join("")}</tbody>
             </table>
           </div>
@@ -218,19 +227,19 @@ function render(dados) {
   const primeiro = gruposPrioridade()[0];
   const limite = dados.config.limiteDisponivel;
 
-  el.heroTitle.textContent = `${contagem.rupture} pecas acabando`;
+  el.heroTitle.textContent = `${contagem.rupture} peças acabando`;
   el.heroSubtitle.textContent = primeiro
-    ? `Prioridade: ${primeiro.prodcor} esta com disponibilidade minima ${primeiro.menorDisponivel}.`
+    ? `Prioridade: ${primeiro.prodcor} está com disponibilidade mínima ${primeiro.menorDisponivel}.`
     : `Nenhum item abaixo ou igual a ${limite}.`;
   el.gaugeNumber.textContent = contagem.rupture;
   el.ruptura.textContent = contagem.rupture;
   el.critico.textContent = contagem.critical;
   el.atencao.textContent = contagem.attention;
   el.itens.textContent = dados.totalItens;
-  el.total.textContent = `${dados.totalLinhasPlanilha} linhas lidas`;
-  el.lastUpdate.textContent = `Ultima leitura: ${fmtData(dados.atualizadoEm)}`;
+  el.total.textContent = `${dados.totalItens} ocorrências dentro do filtro`;
+  el.lastUpdate.textContent = `Última leitura: ${fmtData(dados.atualizadoEm)}`;
   el.fileUpdate.textContent = `Arquivo salvo em: ${fmtData(dados.arquivoModificadoEm)}`;
-  el.filterSummary.textContent = `${dados.filtros.galpao} / ${dados.filtros.tipoEnd} / ${dados.filtros.descricaoContem} / disponivel <= ${limite}`;
+  el.filterSummary.textContent = `${dados.filtros.galpao} / ${dados.filtros.tipoEnd} / ${dados.filtros.descricaoContem} / disponível <= ${limite}`;
 
   renderStack(contagem);
   renderHotlist();
@@ -342,7 +351,7 @@ async function salvarConfiguracao(event) {
   el.configMessage.textContent = "Salvando...";
   try {
     await salvarConfig(payloadDoPainel());
-    el.configMessage.textContent = "Configuracao salva.";
+    el.configMessage.textContent = "Configuração salva.";
     await carregar(true);
   } catch (erro) {
     el.configMessage.textContent = erro.message;
