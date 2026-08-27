@@ -8,6 +8,37 @@
     <script src="/app.js" type="module"></script>
   </head>
   <body>
+    <section id="setup-screen" class="setup-screen">
+      <div class="setup-card">
+        <img class="setup-logo" src="/assets/arco-logo-transparente.png" alt="AR&CO" />
+        <p class="tag">Reserva WMS</p>
+        <h1>Configurar painel</h1>
+        <p class="setup-copy">Informe a planilha, o intervalo de leitura e o limite de disponibilidade. Depois o painel abre direto no radar de ruptura.</p>
+        <form id="setup-form" class="setup-form">
+          <label>
+            Caminho da planilha
+            <input id="setup-planilha-path" type="text" autocomplete="off" />
+          </label>
+          <div class="setup-row">
+            <label>
+              Buscar a cada minutos
+              <input id="setup-intervalo-minutos" type="number" min="1" max="1440" step="1" />
+            </label>
+            <label>
+              Limite disponivel
+              <input id="setup-limite-disponivel" type="number" min="0" max="999999" step="1" />
+            </label>
+          </div>
+          <label class="check">
+            <input id="setup-atualizar-excel-antes" type="checkbox" />
+            <span>Abrir Excel, atualizar conexoes, salvar e fechar antes de ler</span>
+          </label>
+          <button type="submit">Entrar no painel</button>
+          <p id="setup-message"></p>
+        </form>
+      </div>
+    </section>
+
     <main class="page">
       <header class="topbar">
         <img class="brand" src="/assets/arco-logo-transparente.png" alt="AR&CO" />
@@ -17,12 +48,13 @@
           <small id="file-update">Arquivo: -</small>
         </div>
         <div class="actions">
+          <button id="open-setup" type="button" class="secondary">Configurar</button>
           <button id="refresh-excel" type="button" class="secondary">Atualizar Excel</button>
           <button id="refresh" type="button">Ler agora</button>
         </div>
       </header>
 
-      <section class="config-panel">
+      <section class="config-panel" hidden>
         <form id="config-form" class="config-form">
           <label class="path-field">
             Caminho da planilha
@@ -49,7 +81,7 @@
         <div class="hero-main">
           <p class="tag">Radar de ruptura - RJ E4AC / INK</p>
           <h1 id="hero-title">- itens para acabar</h1>
-          <p id="hero-subtitle">Analisando disponibilidade abaixo de 10 por PRODCOR.</p>
+          <p id="hero-subtitle">Carregando as pecas mais urgentes.</p>
         </div>
         <div class="hero-gauge" aria-label="Distribuicao de risco">
           <div class="gauge-number" id="gauge-number">-</div>
@@ -62,17 +94,17 @@
         <button class="signal rupture" type="button" data-risk-filter="rupture">
           <span>Ruptura iminente</span>
           <strong id="m-ruptura">-</strong>
-          <small>menor disponivel ate 2</small>
+          <small>precisa agir agora</small>
         </button>
         <button class="signal critical" type="button" data-risk-filter="critical">
           <span>Critico</span>
           <strong id="m-critico">-</strong>
-          <small>menor disponivel de 3 a 5</small>
+          <small>acompanhar de perto</small>
         </button>
         <button class="signal attention" type="button" data-risk-filter="attention">
           <span>Atencao</span>
           <strong id="m-atencao">-</strong>
-          <small>menor disponivel de 6 a 9</small>
+          <small>baixo, mas nao e prioridade</small>
         </button>
         <button class="signal neutral" type="button" data-risk-filter="all">
           <span>Linhas criticas</span>
