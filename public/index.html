@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WMS Geral - Baixo Estoque</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <main class="page">
+      <header class="top">
+        <img class="brand" src="/assets/arco-logo-transparente.png" alt="AR&CO" />
+        <div class="headline">
+          <p class="tag">WMS_GERAL</p>
+          <h1>Radar de ruptura RJ E4AC</h1>
+          <p class="sub">INK com disponibilidade abaixo de 10, agrupado por PRODCOR e detalhado por caixa, tamanho, grade e endereco.</p>
+        </div>
+        <div class="top-actions">
+          <span id="file-status">Aguardando leitura</span>
+          <button id="refresh" type="button">Atualizar</button>
+        </div>
+      </header>
+
+      <section class="metrics">
+        <article>
+          <span>PRODCOR em risco</span>
+          <strong id="m-prodcor">-</strong>
+          <small>referencias distintas</small>
+        </article>
+        <article>
+          <span>Pontos criticos</span>
+          <strong id="m-itens">-</strong>
+          <small>caixas abaixo de 10</small>
+        </article>
+        <article>
+          <span>Ruptura iminente</span>
+          <strong id="m-ruptura">-</strong>
+          <small>menor disponibilidade ate 2</small>
+        </article>
+        <article>
+          <span>Atualizado</span>
+          <strong id="m-data">-</strong>
+          <small id="m-total">- linhas lidas</small>
+        </article>
+      </section>
+
+      <section class="insight-grid">
+        <article class="panel risk-panel">
+          <div class="panel-head">
+            <div>
+              <p class="tag">Prioridade</p>
+              <h2>Tendencia de estourar</h2>
+            </div>
+            <span class="pill">Menor disponivel por PRODCOR</span>
+          </div>
+          <div id="risk-chart" class="risk-chart"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="tag">Ranking</p>
+              <h2>Top referencias sob pressao</h2>
+            </div>
+          </div>
+          <div id="top-risk" class="rank-list"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="tag">Endereco</p>
+              <h2>Locais com mais alerta</h2>
+            </div>
+          </div>
+          <div id="address-chart" class="bar-chart"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="tag">Grade</p>
+              <h2>Distribuicao do risco</h2>
+            </div>
+          </div>
+          <div id="grade-chart" class="bar-chart"></div>
+        </article>
+      </section>
+
+      <section class="filters">
+        <label>
+          Buscar
+          <input id="search" type="search" placeholder="PRODCOR, produto, caixa, endereco, tamanho..." />
+        </label>
+        <label>
+          Ordenar
+          <select id="sort">
+            <option value="menor">Menor quantidade</option>
+            <option value="prodcor">PRODCOR</option>
+            <option value="caixas">Mais caixas</option>
+          </select>
+        </label>
+      </section>
+
+      <section id="status" class="status">Carregando planilha...</section>
+      <section id="groups" class="groups"></section>
+    </main>
+  </body>
+</html>
