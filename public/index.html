@@ -3,16 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AR&CO WMS - Radar de Ruptura</title>
+    <title>Picking Automation Radar</title>
     <link rel="stylesheet" href="/styles.css" />
     <script src="/app.js" type="module"></script>
   </head>
   <body>
-    <section id="setup-screen" class="setup-screen">
+    <section id="setup-screen" class="setup-screen" hidden>
       <div class="setup-card">
-        <img class="setup-logo" src="/assets/arco-logo-transparente.png" alt="AR&CO" />
-        <p class="tag">Reserva WMS</p>
-        <h1>Configurar painel</h1>
+        <img class="setup-logo" src="/assets/reserva-logo.png" alt="Reserva" />
+        <p class="tag">Picking Automation Radar</p>
+        <h1>Configurar leitura</h1>
         <p class="setup-copy">Informe a planilha, o intervalo de leitura e o limite de disponibilidade. Depois o painel abre direto no radar de ruptura.</p>
         <form id="setup-form" class="setup-form">
           <label>
@@ -41,7 +41,13 @@
 
     <main class="page">
       <header class="topbar">
-        <img class="brand" src="/assets/arco-logo-transparente.png" alt="AR&CO" />
+        <div class="brand-block">
+          <img class="brand" src="/assets/reserva-logo.png" alt="Reserva" />
+          <div>
+            <strong>Picking Automation Radar</strong>
+            <small>Reserva | Picking RJ</small>
+          </div>
+        </div>
         <div class="update-strip">
           <span id="sync-state">Carregando</span>
           <strong id="last-update">Ultima atualizacao: -</strong>
@@ -49,6 +55,7 @@
         </div>
         <div class="actions">
           <button id="open-setup" type="button" class="secondary">Configurar</button>
+          <button id="report-pdf" type="button" class="secondary">Gerar PDF</button>
           <button id="refresh-excel" type="button" class="secondary">Atualizar Excel</button>
           <button id="refresh" type="button">Ler agora</button>
         </div>
@@ -79,7 +86,7 @@
 
       <section class="hero">
         <div class="hero-main">
-          <p class="tag">Radar de ruptura - RJ E4AC / INK</p>
+          <p class="tag">Picking Automation Radar - RJ E4AC / INK</p>
           <h1 id="hero-title">- itens para acabar</h1>
           <p id="hero-subtitle">Carregando as pecas mais urgentes.</p>
         </div>

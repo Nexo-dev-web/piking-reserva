@@ -18,6 +18,7 @@ const el = {
   setupLimite: $("#setup-limite-disponivel"),
   setupExcel: $("#setup-atualizar-excel-antes"),
   openSetup: $("#open-setup"),
+  reportPdf: $("#report-pdf"),
   refresh: $("#refresh"),
   refreshExcel: $("#refresh-excel"),
   syncState: $("#sync-state"),
@@ -123,6 +124,10 @@ function renderHotlist() {
 }
 
 function renderBars(container, dados) {
+  if (!dados.length) {
+    container.innerHTML = `<div class="empty-chart">Sem ocorrencias nesta faixa</div>`;
+    return;
+  }
   const maior = Math.max(...dados.map(item => item.valor), 1);
   container.innerHTML = dados.map(item => `
     <button class="bar-row" type="button" data-search="${esc(item.label)}" title="${esc(item.label)}">
@@ -229,9 +234,11 @@ function render(dados) {
 
   renderStack(contagem);
   renderHotlist();
-  renderBars(el.addressChart, topMapa(itens.filter(item => item.quantidadeDisponivel <= 2), "endereco", 6));
-  renderBars(el.colorChart, topMapa(itens.filter(item => item.quantidadeDisponivel <= 2), "cor", 6));
-  renderBars(el.gradeChart, topMapa(itens.filter(item => item.quantidadeDisponivel <= 2), "grade", 6));
+  const itensRuptura = itens.filter(item => item.quantidadeDisponivel <= 2);
+  const baseGraficos = itensRuptura.length ? itensRuptura : itens;
+  renderBars(el.addressChart, topMapa(baseGraficos, "endereco", 6));
+  renderBars(el.colorChart, topMapa(baseGraficos, "cor", 6));
+  renderBars(el.gradeChart, topMapa(baseGraficos, "grade", 6));
   renderGroups();
 }
 
@@ -303,7 +310,11 @@ async function carregar(manual = true) {
     state.grupos = dados.resumo || [];
     aplicarConfig(dados.config);
     render(dados);
-    el.syncState.textContent = "Sincronizado";
+    el.syncState.textContent = dados.avisoAtualizacaoExcel ? "Lido com aviso" : "Sincronizado";
+    if (dados.avisoAtualizacaoExcel) {
+      el.status.hidden = false;
+      el.status.textContent = dados.avisoAtualizacaoExcel;
+    }
   } catch (erro) {
     el.groups.innerHTML = "";
     el.status.hidden = false;
@@ -377,6 +388,7 @@ function buscarEExpandir(valor) {
 }
 
 el.openSetup.addEventListener("click", () => { el.setupScreen.hidden = false; });
+el.reportPdf.addEventListener("click", () => window.print());
 el.setupForm.addEventListener("submit", entrarSetup);
 el.refresh.addEventListener("click", () => carregar(true));
 el.refreshExcel.addEventListener("click", atualizarExcel);
@@ -398,3 +410,4 @@ document.querySelectorAll(".bar-chart").forEach(chart => {
 });
 
 await carregarConfig();
+await carregar(true);

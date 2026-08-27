@@ -256,8 +256,15 @@ app.post("/api/wms/atualizar-planilha", async (_req, res, next) => {
 app.get("/api/wms/baixo-estoque", async (_req, res, next) => {
   try {
     const configAtual = lerConfig();
-    if (configAtual.atualizarExcelAntesDeLer) await atualizarExcel(configAtual.planilhaPath);
-    res.json(lerWms());
+    let avisoAtualizacaoExcel = "";
+    if (configAtual.atualizarExcelAntesDeLer) {
+      try {
+        await atualizarExcel(configAtual.planilhaPath);
+      } catch (erro) {
+        avisoAtualizacaoExcel = `Excel nao atualizou. Lendo a ultima versao salva. ${erro.message}`;
+      }
+    }
+    res.json({ ...lerWms(), avisoAtualizacaoExcel });
   } catch (erro) {
     next(erro);
   }
