@@ -975,6 +975,25 @@ h2 { font-size: 18px; }
 }
 .wms-3d-popup .tag { margin: 0; }
 .wms-3d-popup h3 { margin: 6px 0 12px; font-size: 18px; line-height: 1.2; }
+.wms-3d-popup-group {
+  margin: -4px 0 12px;
+  color: #ffb5bd;
+  font-size: 12px;
+  font-weight: 900;
+}
+.wms-3d-popup-list {
+  display: grid;
+  gap: 5px;
+  margin: -4px 0 12px;
+  padding: 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .04);
+}
+.wms-3d-popup-list span {
+  color: #e5e7eb;
+  font-size: 11px;
+  font-weight: 800;
+}
 .wms-3d-popup-close {
   position: absolute;
   top: 10px;
@@ -1018,6 +1037,34 @@ h2 { font-size: 18px; }
 .wms-3d-popup-caixa span { color: var(--muted); font-size: 10px; font-weight: 900; text-transform: uppercase; }
 .wms-3d-popup-caixa b { font-size: 16px; }
 .wms-3d-popup-meta { display: block; color: var(--muted); font-size: 11px; }
+.wms-3d-hover {
+  position: fixed;
+  z-index: 40;
+  width: min(360px, calc(100vw - 28px));
+  padding: 10px 12px;
+  border: 1px solid rgba(244, 63, 94, .45);
+  border-radius: 10px;
+  background: rgba(10, 13, 20, .96);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, .42);
+  pointer-events: none;
+}
+.wms-3d-hover strong,
+.wms-3d-hover span,
+.wms-3d-hover small { display: block; }
+.wms-3d-hover strong { color: #fff; font-size: 13px; font-weight: 950; }
+.wms-3d-hover span {
+  margin-top: 3px;
+  color: #e5e7eb;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+.wms-3d-hover small {
+  margin-top: 6px;
+  color: #ffb5bd;
+  font-size: 11px;
+  font-weight: 900;
+}
 
 .location-ranking {
   margin-top: 12px;

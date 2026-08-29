@@ -76,6 +76,52 @@ function nivelQtd(qtd) {
   return "attention";
 }
 
+function itemParaPopup(item) {
+  return {
+    prodcor: item.prodcor,
+    descProduto: item.descProduto,
+    cor: item.cor,
+    tamanho: item.tamanho,
+    grade: item.grade,
+    caixa: item.caixa,
+    endereco: item.endereco,
+    quantidadeEstoque: item.quantidadeEstoque,
+    quantidadeReservada: item.quantidadeReservada,
+    quantidadeDisponivel: item.quantidadeDisponivel,
+    itens: item.itens || null,
+    totalAgrupado: item.totalAgrupado || 1
+  };
+}
+
+function agruparPorCaixaEndereco(itens) {
+  const mapa = new Map();
+  for (const item of itens) {
+    const chave = `${txt(item.caixa) || "sem-caixa"}|${txt(item.endereco)}|${item.info?.colunaAltura || 0}`;
+    if (!mapa.has(chave)) {
+      mapa.set(chave, {
+        ...item,
+        itens: [],
+        totalAgrupado: 0,
+        quantidadeEstoque: 0,
+        quantidadeReservada: 0,
+        quantidadeDisponivel: Infinity
+      });
+    }
+    const grupo = mapa.get(chave);
+    grupo.itens.push(item);
+    grupo.totalAgrupado += 1;
+    grupo.quantidadeEstoque += Number(item.quantidadeEstoque) || 0;
+    grupo.quantidadeReservada += Number(item.quantidadeReservada) || 0;
+    grupo.quantidadeDisponivel = Math.min(grupo.quantidadeDisponivel, Number(item.quantidadeDisponivel) || 0);
+    grupo.prodcor = grupo.itens.map(entry => entry.prodcor).filter(Boolean).slice(0, 2).join(" / ");
+    grupo.descProduto = grupo.itens.length > 1 ? `${grupo.itens.length} produtos na mesma caixa` : item.descProduto;
+  }
+  return Array.from(mapa.values()).map(item => ({
+    ...item,
+    quantidadeDisponivel: item.quantidadeDisponivel === Infinity ? 0 : item.quantidadeDisponivel
+  }));
+}
+
 function rackHeights() {
   return new Map([
     [10, 0.9],
@@ -474,38 +520,44 @@ function WarehouseScene({ data }) {
       }
 
       const addItemBox = (item, sideX, bayZ, slotIndex, slotCount) => {
-        const boxW = 1.05;
-        const boxH = 0.68;
-        const boxD = 0.76;
+        const boxW = item.totalAgrupado > 1 ? 1.35 : 1.08;
+        const boxH = item.totalAgrupado > 1 ? 0.82 : 0.68;
+        const boxD = item.totalAgrupado > 1 ? 0.92 : 0.78;
         const localWidth = 4.9;
         const spacing = slotCount > 1 ? localWidth / (slotCount + 1) : 0;
         const localX = slotCount > 1 ? -localWidth / 2 + spacing * (slotIndex + 1) : 0;
         const y = levelYs.get(item.info.colunaAltura) ?? 0.9;
-        const color = corQtd(item.quantidadeDisponivel, 10);
-        const material = new THREE.MeshStandardMaterial({
-          color,
-          emissive: color.clone().multiplyScalar(0.14),
-          roughness: 0.48,
-          metalness: 0.08
-        });
-        const mesh = new THREE.Mesh(new THREE.BoxGeometry(boxW, boxH, boxD), material);
-        mesh.position.set(sideX + localX, y, bayZ + (sideX < 0 ? -0.36 : 0.36));
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-        mesh.userData.item = {
-          prodcor: item.prodcor,
-          descProduto: item.descProduto,
-          cor: item.cor,
-          tamanho: item.tamanho,
-          grade: item.grade,
-          caixa: item.caixa,
-          endereco: item.endereco,
-          quantidadeEstoque: item.quantidadeEstoque,
-          quantidadeReservada: item.quantidadeReservada,
-          quantidadeDisponivel: item.quantidadeDisponivel
-        };
-        dynamicGroup.add(mesh);
-        clickTargetsRef.current.push({ mesh, item: mesh.userData.item });
+        const group = new THREE.Group();
+        group.position.set(sideX + localX, y, bayZ + (sideX < 0 ? -0.36 : 0.36));
+        const riscoColor = corQtd(item.quantidadeDisponivel, 10);
+        const crateMat = new THREE.MeshStandardMaterial({ color: 0x0b0c10, roughness: 0.72, metalness: 0.08 });
+        const edgeMat = new THREE.LineBasicMaterial({ color: riscoColor, transparent: true, opacity: 0.95 });
+        const wallThickness = 0.08;
+        const parts = [
+          new THREE.Mesh(new THREE.BoxGeometry(boxW, wallThickness, boxD), crateMat),
+          new THREE.Mesh(new THREE.BoxGeometry(boxW, boxH, wallThickness), crateMat),
+          new THREE.Mesh(new THREE.BoxGeometry(boxW, boxH, wallThickness), crateMat),
+          new THREE.Mesh(new THREE.BoxGeometry(wallThickness, boxH, boxD), crateMat),
+          new THREE.Mesh(new THREE.BoxGeometry(wallThickness, boxH, boxD), crateMat)
+        ];
+        parts[0].position.y = -boxH / 2;
+        parts[1].position.z = -boxD / 2;
+        parts[2].position.z = boxD / 2;
+        parts[3].position.x = -boxW / 2;
+        parts[4].position.x = boxW / 2;
+        const popupItem = itemParaPopup(item);
+        for (const part of parts) {
+          part.castShadow = true;
+          part.receiveShadow = true;
+          part.userData.item = popupItem;
+          group.add(part);
+          clickTargetsRef.current.push({ mesh: part, item: popupItem });
+        }
+        const edges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(boxW, boxH, boxD)), edgeMat);
+        edges.userData.item = popupItem;
+        group.add(edges);
+        clickTargetsRef.current.push({ mesh: edges, item: popupItem });
+        dynamicGroup.add(group);
 
         const itemEndereco = txt(item.endereco);
         const itemCaixa = txt(item.caixa);
@@ -515,7 +567,7 @@ function WarehouseScene({ data }) {
             ? itemEndereco === focoEndereco
             : false;
         if (focoCoincide || (!focoPos && focoItem && itemEndereco === txt(focoItem.endereco))) {
-          focoPos = mesh.position.clone();
+          focoPos = group.position.clone();
         }
 
         const qtdTag = makeSprite(`${item.quantidadeDisponivel}`, {
@@ -525,10 +577,10 @@ function WarehouseScene({ data }) {
           scale: [0.42, 0.3]
         });
         if (qtdTag) {
-          qtdTag.position.set(mesh.position.x, mesh.position.y + boxH / 2 + 0.14, mesh.position.z);
+          qtdTag.position.set(group.position.x, group.position.y + boxH / 2 + 0.18, group.position.z);
           dynamicGroup.add(qtdTag);
-          qtdTag.userData.item = mesh.userData.item;
-          clickTargetsRef.current.push({ mesh: qtdTag, item: mesh.userData.item });
+          qtdTag.userData.item = popupItem;
+          clickTargetsRef.current.push({ mesh: qtdTag, item: popupItem });
         }
       };
 
@@ -656,7 +708,8 @@ function WarehouseScene({ data }) {
           }
 
           LEVEL_ORDER.forEach(level => {
-            const levelItems = (groupedLevels.get(level) || []).sort((a, b) => a.prodcor.localeCompare(b.prodcor, "pt-BR", { numeric: true }));
+            const levelItems = agruparPorCaixaEndereco(groupedLevels.get(level) || [])
+              .sort((a, b) => txt(a.caixa).localeCompare(txt(b.caixa), "pt-BR", { numeric: true }) || txt(a.prodcor).localeCompare(txt(b.prodcor), "pt-BR", { numeric: true }));
             const levelY = levelYs.get(level) || 0.9;
             const shelfLine = new THREE.Mesh(
               new THREE.BoxGeometry(6.8, 0.06, 0.1),
@@ -830,10 +883,19 @@ function WarehouseScene({ data }) {
       raycaster.setFromCamera(pointer, camera);
       const hits = raycaster.intersectObjects(clickTargetsRef.current.map(entry => entry.mesh), false);
       renderer.domElement.style.cursor = hits.length ? "pointer" : "default";
+      const item = hits[0]?.object?.userData?.item || null;
+      window.dispatchEvent(new CustomEvent("wms-item-hover", {
+        detail: item ? { item, x: event.clientX, y: event.clientY } : null
+      }));
+    };
+    const onPointerLeave = () => {
+      renderer.domElement.style.cursor = "default";
+      window.dispatchEvent(new CustomEvent("wms-item-hover", { detail: null }));
     };
     renderer.domElement.addEventListener("pointerdown", onPointerDown);
     renderer.domElement.addEventListener("pointerup", onPointerUp);
     renderer.domElement.addEventListener("pointermove", onPointerMove);
+    renderer.domElement.addEventListener("pointerleave", onPointerLeave);
 
     let frame = 0;
     const animate = () => {
@@ -922,6 +984,7 @@ function WarehouseScene({ data }) {
       renderer.domElement.removeEventListener("pointerdown", onPointerDown);
       renderer.domElement.removeEventListener("pointerup", onPointerUp);
       renderer.domElement.removeEventListener("pointermove", onPointerMove);
+      renderer.domElement.removeEventListener("pointerleave", onPointerLeave);
       resizeObserver?.disconnect();
       controls.dispose();
       renderer.dispose();
@@ -946,6 +1009,7 @@ function WarehouseScene({ data }) {
 
 function ItemPopup({ item, onClose }) {
   const info = parseEndereco(item.endereco);
+  const agrupado = Array.isArray(item.itens) && item.itens.length > 1;
   return h(
     "div",
     { className: "wms-3d-popup-backdrop", onClick: onClose },
@@ -955,6 +1019,12 @@ function ItemPopup({ item, onClose }) {
       h("button", { type: "button", className: "wms-3d-popup-close", onClick: onClose }, "×"),
       h("p", { className: "tag" }, item.prodcor),
       h("h3", null, item.descProduto || "Produto"),
+      agrupado ? h("p", { className: "wms-3d-popup-group" }, `${item.itens.length} produtos agrupados nesta caixa/endereço`) : null,
+      agrupado ? h(
+        "div",
+        { className: "wms-3d-popup-list" },
+        item.itens.slice(0, 6).map(entry => h("span", { key: `${entry.prodcor}-${entry.tamanho}-${entry.grade}` }, `${entry.prodcor} · Tam ${entry.tamanho || "-"} · Grade ${entry.grade || "-"} · disp. ${entry.quantidadeDisponivel}`))
+      ) : null,
       h(
         "div",
         { className: "wms-3d-popup-stats" },
@@ -978,10 +1048,30 @@ function ItemPopup({ item, onClose }) {
   );
 }
 
+function ItemHover({ hover }) {
+  if (!hover?.item) return null;
+  const item = hover.item;
+  const agrupado = Array.isArray(item.itens) && item.itens.length > 1;
+  const nomes = agrupado
+    ? item.itens.slice(0, 3).map(entry => `${entry.prodcor} · ${entry.descProduto}`).join(" | ")
+    : `${item.prodcor} · ${item.descProduto || "Produto"}`;
+  return h(
+    "div",
+    {
+      className: "wms-3d-hover",
+      style: { left: `${hover.x + 14}px`, top: `${hover.y + 14}px` }
+    },
+    h("strong", null, agrupado ? `${item.itens.length} produtos na caixa` : item.prodcor),
+    h("span", null, nomes),
+    h("small", null, `Caixa ${item.caixa || "sem caixa"} · ${item.endereco} · disp. ${item.quantidadeDisponivel}`)
+  );
+}
+
 function Location3DApp() {
   const [payload, setPayload] = useState(window.__WMS_LOCATION_DATA__ || null);
   const [tela, setTela] = useState(false);
   const [itemPopup, setItemPopup] = useState(null);
+  const [itemHover, setItemHover] = useState(null);
   const shellRef = useRef(null);
 
   useEffect(() => {
@@ -995,6 +1085,12 @@ function Location3DApp() {
     const listener = event => setItemPopup(event.detail);
     window.addEventListener("wms-item-click", listener);
     return () => window.removeEventListener("wms-item-click", listener);
+  }, []);
+
+  useEffect(() => {
+    const listener = event => setItemHover(event.detail);
+    window.addEventListener("wms-item-hover", listener);
+    return () => window.removeEventListener("wms-item-hover", listener);
   }, []);
 
   useEffect(() => {
@@ -1070,6 +1166,7 @@ function Location3DApp() {
     modo === "corredor" ? h("div", { className: "wms-3d-corridor-badge" }, h("small", null, "Você está no"), h("strong", null, resumo.rua)) : null,
     h(WarehouseScene, { data: payload }),
     h(Legend, { modo }),
+    h(ItemHover, { hover: itemHover }),
     itemPopup ? h(ItemPopup, { item: itemPopup, onClose: () => setItemPopup(null) }) : null
   );
 }
