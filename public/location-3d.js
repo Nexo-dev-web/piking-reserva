@@ -539,19 +539,19 @@ function WarehouseScene({ data }) {
       }
 
       const addItemBox = (item, sideX, bayZ, slotIndex, slotCount) => {
-        const boxW = item.totalAgrupado > 1 ? 1.35 : 1.08;
-        const boxH = item.totalAgrupado > 1 ? 0.82 : 0.68;
-        const boxD = item.totalAgrupado > 1 ? 0.92 : 0.78;
-        const localWidth = 4.9;
+        const boxW = item.totalAgrupado > 1 ? 1.06 : 0.88;
+        const boxH = item.totalAgrupado > 1 ? 0.54 : 0.46;
+        const boxD = item.totalAgrupado > 1 ? 0.72 : 0.62;
+        const localWidth = 5.6;
         const spacing = slotCount > 1 ? localWidth / (slotCount + 1) : 0;
         const localX = slotCount > 1 ? -localWidth / 2 + spacing * (slotIndex + 1) : 0;
         const y = levelYs.get(item.info.colunaAltura) ?? 0.9;
         const group = new THREE.Group();
         group.position.set(sideX + localX, y, bayZ + (sideX < 0 ? -0.36 : 0.36));
         const riscoColor = corQtd(item.quantidadeDisponivel, 10);
-        const crateMat = new THREE.MeshStandardMaterial({ color: 0x0b0c10, roughness: 0.72, metalness: 0.08 });
+        const crateMat = new THREE.MeshStandardMaterial({ color: 0x0b0c10, roughness: 0.72, metalness: 0.08, transparent: true, opacity: 0.72 });
         const edgeMat = new THREE.LineBasicMaterial({ color: riscoColor, transparent: true, opacity: 0.95 });
-        const wallThickness = 0.08;
+        const wallThickness = 0.045;
         const parts = [
           new THREE.Mesh(new THREE.BoxGeometry(boxW, wallThickness, boxD), crateMat),
           new THREE.Mesh(new THREE.BoxGeometry(boxW, boxH, wallThickness), crateMat),
