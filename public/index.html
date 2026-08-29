@@ -5,7 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Picking Automation Radar</title>
     <link rel="stylesheet" href="/styles.css" />
+    <script src="/vendor/react.production.min.js"></script>
+    <script src="/vendor/react-dom.production.min.js"></script>
     <script src="/app.js" type="module"></script>
+    <script src="/location-3d.js" type="module"></script>
   </head>
   <body>
     <section id="setup-screen" class="setup-screen" hidden>
@@ -28,7 +31,12 @@
               Limite disponível
               <input id="setup-limite-disponivel" type="number" min="0" max="999999" step="1" />
             </label>
+            <label>
+              Peças por caixa
+              <input id="setup-capacidade-caixa" type="number" min="1" max="9999" step="1" />
+            </label>
           </div>
+          <p class="setup-copy small">Usamos isso pra calcular o % de ocupação de cada prateleira na visão 3D. Pode mudar depois em Configurar.</p>
           <label class="check">
             <input id="setup-atualizar-excel-antes" type="checkbox" />
             <span>Abrir Excel, atualizar conexões, salvar e fechar antes de ler</span>
@@ -40,6 +48,8 @@
     </section>
 
     <main class="page">
+      <section id="print-report" class="print-report"></section>
+
       <header class="topbar">
         <div class="brand-block">
           <img class="brand" src="/assets/reserva-logo.png" alt="Reserva" />
@@ -75,6 +85,10 @@
             Limite disponível
             <input id="limite-disponivel" name="limiteDisponivel" type="number" min="0" max="999999" step="1" />
           </label>
+          <label>
+            Peças por caixa
+            <input id="capacidade-caixa" name="capacidadeCaixa" type="number" min="1" max="9999" step="1" />
+          </label>
           <label class="check">
             <input id="atualizar-excel-antes" name="atualizarExcelAntesDeLer" type="checkbox" />
             <span>Atualizar Excel antes de ler</span>
@@ -84,11 +98,21 @@
         </form>
       </section>
 
+      <div class="layout">
+        <nav class="sidebar" aria-label="Visualização">
+          <button id="tab-painel" class="side-tab active" type="button" data-tab="painel">Painel</button>
+          <button id="tab-produtos" class="side-tab" type="button" data-tab="produtos">Todos os produtos</button>
+          <button id="tab-localizacao" class="side-tab" type="button" data-tab="localizacao">Localização</button>
+        </nav>
+
+        <div class="content">
+      <div id="view-painel">
       <section class="hero">
         <div class="hero-main">
-          <p class="tag">Picking Automation Radar - RJ E4AC / INK</p>
+          <p class="tag">Resumo operacional - RJ E4AC / INK</p>
           <h1 id="hero-title">- peças acabando</h1>
-          <p id="hero-subtitle">Carregando as peças mais urgentes.</p>
+          <div id="hero-prioridade" class="hero-prioridade"></div>
+          <div id="hero-briefing" class="hero-briefing"></div>
         </div>
         <div class="hero-gauge" aria-label="Distribuicao de risco">
           <div class="gauge-number" id="gauge-number">-</div>
@@ -97,21 +121,38 @@
         </div>
       </section>
 
+        <section class="panel heatmap-panel">
+          <div class="panel-head">
+            <div>
+              <p class="tag">Mapa de calor</p>
+              <h2>Tudo que está acabando, de uma vez</h2>
+            </div>
+          <div class="heatmap-toggle">
+            <button id="heat-modo-produto" class="tab active" type="button">Por produto</button>
+            <button id="heat-modo-endereco" class="tab" type="button">Por endereço</button>
+          </div>
+          </div>
+          <p class="pill pill-legend">mais escuro/vermelho = mais perto de zerar</p>
+          <p class="pill pill-legend addr-legend">Leitura: E4 = endereço base, AC02 = rua/módulo, P05 = prateleira (ímpar/par), L10 = embaixo, L20 = meio, L50 = altura da cabeça</p>
+          <div id="heatmap" class="heatmap"></div>
+          <div id="heatmap-enderecos" class="heatmap-enderecos" hidden></div>
+        </section>
+
       <section class="signal-grid" aria-label="Atalhos por risco">
         <button class="signal rupture" type="button" data-risk-filter="rupture">
           <span>Ruptura iminente</span>
           <strong id="m-ruptura">-</strong>
-          <small>precisa agir agora</small>
+          <small id="m-ruptura-desc">precisa agir agora</small>
         </button>
         <button class="signal critical" type="button" data-risk-filter="critical">
           <span>Crítico</span>
           <strong id="m-critico">-</strong>
-          <small>acompanhar de perto</small>
+          <small id="m-critico-desc">acompanhar de perto</small>
         </button>
         <button class="signal attention" type="button" data-risk-filter="attention">
           <span>Atenção</span>
           <strong id="m-atencao">-</strong>
-          <small>baixo, mas não é prioridade</small>
+          <small id="m-atencao-desc">baixo, mas não é prioridade</small>
         </button>
         <button class="signal neutral" type="button" data-risk-filter="all">
           <span>Ocorrências no filtro</span>
@@ -178,10 +219,120 @@
             <option value="caixas">Mais caixas</option>
           </select>
         </label>
+        <label>
+          Rua
+          <input id="local-rua" type="text" placeholder="AC01, AC02..." />
+        </label>
+        <label>
+          Prateleira
+          <input id="local-prateleira" type="text" placeholder="05, 11..." />
+        </label>
+        <label>
+          Caixa
+          <input id="local-caixa" type="text" placeholder="número da caixa" />
+        </label>
+        <button id="local-limpar" type="button" class="secondary">Limpar filtro local</button>
       </section>
 
       <section id="status" class="status">Carregando planilha...</section>
       <section id="groups" class="groups"></section>
+      </div>
+
+      <div id="view-produtos" hidden>
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="tag">Todos os produtos</p>
+              <h2>OD_RJ / E4AC / INK — sem filtro de quantidade</h2>
+            </div>
+            <span id="produtos-total" class="pill">-</span>
+          </div>
+          <div class="filters produtos-filters">
+            <label>
+              Buscar produto
+              <input id="search-produtos" type="search" placeholder="PRODCOR, descrição, cor, tamanho, grade..." />
+            </label>
+            <label>
+              Ordenar
+              <select id="sort-produtos">
+                <option value="menor">Menor disponível</option>
+                <option value="prodcor">PRODCOR</option>
+                <option value="endereco">Endereço</option>
+              </select>
+            </label>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>PRODCOR</th>
+                  <th>Descrição</th>
+                  <th>Cor</th>
+                  <th>Endereço</th>
+                  <th>Caixa</th>
+                  <th>Tamanho</th>
+                  <th>Grade</th>
+                  <th>Estoque</th>
+                  <th>Reservada</th>
+                  <th>Disponível</th>
+                </tr>
+              </thead>
+              <tbody id="produtos-tbody"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <div id="view-localizacao" hidden>
+        <section class="panel location-panel">
+          <div class="panel-head">
+            <div>
+              <p class="tag">Localização física</p>
+              <h2>Caixa a caixa, com corredor em 3D</h2>
+            </div>
+            <span id="localizacao-total" class="pill">-</span>
+          </div>
+          <p class="pill pill-legend">A vista abaixo responde aos filtros de rua, prateleira e caixa</p>
+          <div id="localizacao-resumo"></div>
+          <div class="location-grid">
+            <div class="location-corridor-panel">
+              <div class="location-corridor-head">
+                <button id="local-voltar-geral" type="button" class="secondary local-voltar-geral" hidden>&larr; Ver todos os corredores</button>
+                <label>
+                  Corredor em foco
+                  <select id="local-corridor-rua"></select>
+                </label>
+                <label class="capacidade-inline">
+                  Peças por caixa
+                  <input id="local-capacidade-caixa" type="number" min="1" max="9999" step="1" />
+                </label>
+              </div>
+              <div id="localizacao-corridor" class="location-corridor">
+                <div id="location-3d-root" class="location-3d-root"></div>
+              </div>
+              <div class="location-ranking">
+                <div class="location-ranking-head">
+                  <p class="tag">Todos os corredores</p>
+                  <h3>Quantas caixas críticas cada corredor tem</h3>
+                  <small>Barra e número = caixas com estoque baixo do total · clique numa linha pra abrir aquele corredor no 3D</small>
+                </div>
+                <div id="localizacao-ruas-lista" class="location-ruas-lista"></div>
+              </div>
+              <div class="location-ranking">
+                <div class="location-ranking-head">
+                  <p class="tag">Ranking de caixas</p>
+                  <h3>Qual caixa está mais cheia</h3>
+                  <small>% = peças disponíveis na caixa ÷ peças por caixa</small>
+                </div>
+                <div id="localizacao-ranking-lista" class="location-ranking-lista"></div>
+              </div>
+            </div>
+            <div id="localizacao-lista" class="location-list"></div>
+          </div>
+        </section>
+      </div>
+        </div>
+      </div>
     </main>
   </body>
 </html>

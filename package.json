@@ -5,10 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "node --watch server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "build": "terser public/app.js --module --compress --mangle --output public/app.min.js"
   },
   "dependencies": {
     "express": "^5.1.0",
+    "three": "^0.185.1",
     "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "terser": "^5.51.0"
   }
 }

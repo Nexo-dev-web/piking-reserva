@@ -1,7 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import fs from "node:fs";
-import { execFile } from "node:child_process";
+import { spawn } from "node:child_process";
 import express from "express";
 import XLSX from "xlsx";
 
@@ -20,9 +20,10 @@ const FILTROS_FIXOS = {
 function configPadrao() {
   return {
     planilhaPath: process.env.WMS_GERAL_PATH || DEFAULT_PLANILHA,
-    intervaloMinutos: 5,
+    intervaloMinutos: 1,
     limiteDisponivel: 10,
-    atualizarExcelAntesDeLer: false
+    atualizarExcelAntesDeLer: true,
+    capacidadeCaixa: 50
   };
 }
 
@@ -90,18 +91,13 @@ function normalizarItem(linha, index) {
   };
 }
 
-function lerWms() {
-  const configAtual = lerConfig();
-  const planilha = configAtual.planilhaPath;
-  const limiteDisponivel = Math.max(0, Number(configAtual.limiteDisponivel) || 10);
+const cachePlanilha = { mtimeMs: null, itensBase: null, totalLinhas: 0 };
 
-  if (!fs.existsSync(planilha)) {
-    const erro = new Error(`Planilha não encontrada: ${planilha}`);
-    erro.status = 404;
-    throw erro;
+function lerItensBase(planilha, stat) {
+  if (cachePlanilha.mtimeMs === stat.mtimeMs) {
+    return { itensBase: cachePlanilha.itensBase, totalLinhas: cachePlanilha.totalLinhas };
   }
 
-  const stat = fs.statSync(planilha);
   const workbook = XLSX.readFile(planilha, { cellDates: false });
   const sheet = workbook.Sheets[ABA];
   if (!sheet) {
@@ -113,14 +109,36 @@ function lerWms() {
   const matriz = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: false });
   const headers = matriz[0] || [];
   const linhas = matriz.slice(1).map(valores => montarLinha(headers, valores));
-  const itens = linhas
+  const itensBase = linhas
     .map(normalizarItem)
     .filter(item =>
       item.galpao === FILTROS_FIXOS.galpao &&
       item.tipoEnd === FILTROS_FIXOS.tipoEnd &&
-      contem(item.descProduto, FILTROS_FIXOS.descricaoContem) &&
-      item.quantidadeDisponivel <= limiteDisponivel
-    )
+      contem(item.descProduto, FILTROS_FIXOS.descricaoContem)
+    );
+
+  cachePlanilha.mtimeMs = stat.mtimeMs;
+  cachePlanilha.itensBase = itensBase;
+  cachePlanilha.totalLinhas = linhas.length;
+  return { itensBase, totalLinhas: linhas.length };
+}
+
+function lerWms({ ignorarLimite = false } = {}) {
+  const configAtual = lerConfig();
+  const planilha = configAtual.planilhaPath;
+  const limiteDisponivel = Math.max(0, Number(configAtual.limiteDisponivel) || 10);
+
+  if (!fs.existsSync(planilha)) {
+    const erro = new Error(`Planilha não encontrada: ${planilha}`);
+    erro.status = 404;
+    throw erro;
+  }
+
+  const stat = fs.statSync(planilha);
+  const { itensBase, totalLinhas } = lerItensBase(planilha, stat);
+
+  const itens = itensBase
+    .filter(item => ignorarLimite || item.quantidadeDisponivel <= limiteDisponivel)
     .sort((a, b) =>
       a.prodcor.localeCompare(b.prodcor, "pt-BR", { numeric: true }) ||
       a.quantidadeDisponivel - b.quantidadeDisponivel ||
@@ -169,7 +187,7 @@ function lerWms() {
     arquivoModificadoEm: stat.mtime.toISOString(),
     filtros: { ...FILTROS_FIXOS, limiteDisponivel },
     config: { ...configAtual, limiteDisponivel },
-    totalLinhasPlanilha: linhas.length,
+    totalLinhasPlanilha: totalLinhas,
     totalItens: itens.length,
     totalProdcor: resumo.length,
     resumo
@@ -185,24 +203,38 @@ function atualizarExcel(planilha) {
 
     const caminho = JSON.stringify(planilha);
     const comando = `
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
 $ErrorActionPreference = 'Stop'
 $origem = ${caminho}
-if (!(Test-Path -LiteralPath $origem)) { throw "Arquivo nao encontrado: $origem" }
+if (!(Test-Path -LiteralPath $origem)) { throw "Arquivo não encontrado: $origem" }
 $temp = Join-Path $env:TEMP ("picking-wms-" + [guid]::NewGuid().ToString() + ".xlsm")
 Copy-Item -LiteralPath $origem -Destination $temp -Force
+$antes = @(Get-Process EXCEL -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Id)
 $excel = New-Object -ComObject Excel.Application
-$excel.Visible = $false
+$novoPid = $null
+for ($tentativa = 0; $tentativa -lt 25 -and -not $novoPid; $tentativa++) {
+  Start-Sleep -Milliseconds 200
+  $depois = @(Get-Process EXCEL -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Id)
+  $novoPid = $depois | Where-Object { $antes -notcontains $_ } | Select-Object -First 1
+}
+if ($novoPid) { Write-Output "EXCEL_PID: $novoPid" }
+$excel.Visible = $true
+$excel.UserControl = $false
 $excel.DisplayAlerts = $false
 $excel.AskToUpdateLinks = $false
 $workbook = $null
 try {
   $workbook = $excel.Workbooks.Open($temp, 3, $false)
   foreach ($connection in @($workbook.Connections)) {
-    try { $connection.Refresh() } catch {}
+    try { if ($connection.OLEDBConnection) { $connection.OLEDBConnection.BackgroundQuery = $false } } catch {}
+    try { if ($connection.ODBCConnection) { $connection.ODBCConnection.BackgroundQuery = $false } } catch {}
+    try {
+      $connection.Refresh()
+    } catch {
+      Write-Output "AVISO_CONEXAO: $($connection.Name) - $($_.Exception.Message)"
+    }
   }
-  $workbook.RefreshAll()
-  $excel.CalculateUntilAsyncQueriesDone()
-  Start-Sleep -Seconds 12
   $excel.CalculateFullRebuild()
   $workbook.Save()
   $workbook.Close($true)
@@ -216,23 +248,120 @@ try {
   if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue }
 }`;
 
-    execFile("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", comando], {
-      windowsHide: true,
-      timeout: 180000
-    }, (erro, stdout, stderr) => {
-      if (erro) {
-        reject(new Error(stderr || erro.message));
+    const inicioIso = new Date().toISOString();
+    const processo = spawn("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", comando], {
+      windowsHide: true
+    });
+
+    let excelPid = null;
+    let stdoutBuf = "";
+    let stderrBuf = "";
+    let finalizado = false;
+
+    function matarExcelOrfao() {
+      const scriptLimpeza = `Get-Process EXCEL -ErrorAction SilentlyContinue | Where-Object { $_.StartTime -ge (Get-Date "${inicioIso}") } | Stop-Process -Force -ErrorAction SilentlyContinue`;
+      spawn("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", scriptLimpeza], { windowsHide: true, detached: true }).unref();
+    }
+
+    const limite = setTimeout(() => {
+      if (finalizado) return;
+      finalizado = true;
+      processo.kill();
+      if (excelPid) {
+        try { process.kill(excelPid); } catch {}
+      }
+      matarExcelOrfao();
+      reject(new Error("A automação do Excel não respondeu em até 3 minutos. Verifique se o Excel abriu uma janela pedindo login, senha, permissão de conexão ou confirmação de atualização."));
+    }, 180000);
+
+    processo.stdout.on("data", chunk => {
+      stdoutBuf += chunk.toString("utf8");
+      const encontrado = stdoutBuf.match(/EXCEL_PID:\s*(\d+)/);
+      if (encontrado) excelPid = Number(encontrado[1]);
+    });
+    processo.stderr.on("data", chunk => {
+      stderrBuf += chunk.toString("utf8");
+    });
+
+    processo.on("error", erro => {
+      if (finalizado) return;
+      finalizado = true;
+      clearTimeout(limite);
+      reject(erro);
+    });
+
+    processo.on("close", codigo => {
+      if (finalizado) return;
+      finalizado = true;
+      clearTimeout(limite);
+      if (codigo !== 0) {
+        reject(new Error(stderrBuf.trim() || `PowerShell saiu com código ${codigo}`));
         return;
       }
-      resolve(stdout);
+      const avisos = stdoutBuf
+        .split(/\r?\n/)
+        .filter(linha => linha.startsWith("AVISO_CONEXAO:"))
+        .map(linha => linha.replace("AVISO_CONEXAO:", "").trim());
+      resolve({ avisos });
     });
   });
+}
+
+const estadoAtualizacao = {
+  emAndamento: false,
+  ultimaExecucaoEm: null,
+  aviso: "",
+  erro: ""
+};
+
+let execucaoEmAndamentoPromise = null;
+
+function atualizarExcelSincronizado(planilha) {
+  if (execucaoEmAndamentoPromise) return execucaoEmAndamentoPromise;
+  estadoAtualizacao.emAndamento = true;
+  execucaoEmAndamentoPromise = atualizarExcel(planilha)
+    .then(({ avisos }) => {
+      estadoAtualizacao.erro = "";
+      estadoAtualizacao.aviso = avisos.length
+        ? `${avisos.length} conexão(ões) de dados não atualizou(aram): ${avisos.join(" | ")}`
+        : "";
+      return { avisos };
+    })
+    .catch(erro => {
+      estadoAtualizacao.erro = erro.message;
+      throw erro;
+    })
+    .finally(() => {
+      estadoAtualizacao.emAndamento = false;
+      estadoAtualizacao.ultimaExecucaoEm = new Date().toISOString();
+      execucaoEmAndamentoPromise = null;
+    });
+  return execucaoEmAndamentoPromise;
+}
+
+let temporizadorAtualizacao = null;
+
+function reagendarAtualizacao(configAtual) {
+  if (temporizadorAtualizacao) clearInterval(temporizadorAtualizacao);
+  temporizadorAtualizacao = null;
+  if (!configAtual.atualizarExcelAntesDeLer) return;
+
+  const ms = Math.max(1, Number(configAtual.intervaloMinutos) || 1) * 60 * 1000;
+  const rodar = () => {
+    atualizarExcelSincronizado(configAtual.planilhaPath).catch(erro => {
+      console.error("Falha ao atualizar Excel em segundo plano:", erro.message);
+    });
+  };
+  rodar();
+  temporizadorAtualizacao = setInterval(rodar, ms);
 }
 
 const app = express();
 
 app.use(express.json({ limit: "64kb" }));
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.static(path.join(__dirname, "public"), {
+  setHeaders: res => res.setHeader("Cache-Control", "no-cache")
+}));
 
 app.get("/api/config", (_req, res) => {
   res.json(lerConfig());
@@ -240,42 +369,53 @@ app.get("/api/config", (_req, res) => {
 
 app.post("/api/config", (req, res) => {
   const planilhaPath = txt(req.body?.planilhaPath);
-  const intervaloMinutos = Math.max(1, Math.min(1440, Number(req.body?.intervaloMinutos) || 5));
+  const intervaloMinutos = Math.max(1, Math.min(1440, Number(req.body?.intervaloMinutos) || 1));
   const limiteDisponivel = Math.max(0, Math.min(999999, Number(req.body?.limiteDisponivel) || 10));
   const atualizarExcelAntesDeLer = Boolean(req.body?.atualizarExcelAntesDeLer);
+  const capacidadeCaixa = Math.max(1, Math.min(9999, Number(req.body?.capacidadeCaixa) || 50));
 
   if (!planilhaPath) {
     res.status(400).json({ erro: "Informe o caminho da planilha." });
     return;
   }
 
-  const config = { planilhaPath, intervaloMinutos, limiteDisponivel, atualizarExcelAntesDeLer };
+  const config = { planilhaPath, intervaloMinutos, limiteDisponivel, atualizarExcelAntesDeLer, capacidadeCaixa };
   salvarConfig(config);
+  reagendarAtualizacao(config);
   res.json(config);
 });
 
 app.post("/api/wms/atualizar-planilha", async (_req, res, next) => {
   try {
     const configAtual = lerConfig();
-    await atualizarExcel(configAtual.planilhaPath);
-    res.json({ ok: true, atualizadoEm: new Date().toISOString() });
+    const { avisos } = await atualizarExcelSincronizado(configAtual.planilhaPath);
+    const avisoAtualizacaoExcel = avisos.length
+      ? `Planilha salva, mas ${avisos.length} conexão(ões) de dados não atualizou(aram): ${avisos.join(" | ")}`
+      : "";
+    res.json({ ok: true, atualizadoEm: new Date().toISOString(), avisoAtualizacaoExcel });
   } catch (erro) {
     next(erro);
   }
 });
 
-app.get("/api/wms/baixo-estoque", async (_req, res, next) => {
+app.get("/api/wms/baixo-estoque", (_req, res, next) => {
   try {
-    const configAtual = lerConfig();
-    let avisoAtualizacaoExcel = "";
-    if (configAtual.atualizarExcelAntesDeLer) {
-      try {
-        await atualizarExcel(configAtual.planilhaPath);
-      } catch (erro) {
-        avisoAtualizacaoExcel = `Excel não atualizou. Lendo a última versão salva. ${erro.message}`;
-      }
-    }
-    res.json({ ...lerWms(), avisoAtualizacaoExcel });
+    const dados = lerWms();
+    const exibirAvisoAtualizacao = dados.config.atualizarExcelAntesDeLer;
+    res.json({
+      ...dados,
+      avisoAtualizacaoExcel: exibirAvisoAtualizacao ? (estadoAtualizacao.erro || estadoAtualizacao.aviso || "") : "",
+      atualizandoExcelAgora: estadoAtualizacao.emAndamento,
+      ultimaAtualizacaoExcelEm: estadoAtualizacao.ultimaExecucaoEm
+    });
+  } catch (erro) {
+    next(erro);
+  }
+});
+
+app.get("/api/wms/todos-produtos", (_req, res, next) => {
+  try {
+    res.json(lerWms({ ignorarLimite: true }));
   } catch (erro) {
     next(erro);
   }
@@ -289,4 +429,5 @@ app.listen(PORT, () => {
   const configAtual = lerConfig();
   console.log(`WMS web em http://localhost:${PORT}`);
   console.log(`Planilha: ${configAtual.planilhaPath}`);
+  reagendarAtualizacao(configAtual);
 });
