@@ -144,6 +144,36 @@ function makeSprite(texto, { bg = "rgba(17, 24, 39, .9)", fg = "#fff", size = 44
   return sprite;
 }
 
+function makeFloorLabel(texto, { bg = "rgba(244, 63, 94, .9)", fg = "#fff", width = 4.6, height = 1.15, size = 42 } = {}) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1024;
+  canvas.height = 256;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = bg;
+  roundRect(ctx, 14, 14, canvas.width - 28, canvas.height - 28, 26);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,.45)";
+  ctx.lineWidth = 5;
+  roundRect(ctx, 24, 24, canvas.width - 48, canvas.height - 48, 22);
+  ctx.stroke();
+
+  ctx.fillStyle = fg;
+  ctx.font = `950 ${size}px Inter, Arial, sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  wrapText(ctx, texto, canvas.width / 2, canvas.height / 2, canvas.width - 90, size + 12);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height), material);
+  mesh.rotation.x = -Math.PI / 2;
+  return mesh;
+}
+
 function disposeNode(node) {
   if (node.geometry) node.geometry.dispose?.();
   if (node.material) {
@@ -203,7 +233,7 @@ function Legend({ modo }) {
       h("span", { className: "dot baixa" }), h("small", null, "tem prodcor crítico/ruptura")
     ),
     modo === "corredor"
-      ? h("div", { className: "wms-3d-legend-glossario" }, h("small", null, "Clique em uma caixa para ver produto, caixa, endereço completo, tamanho, grade e cor. P09 = prateleira 09 · L10/L20/L50 = altura/coluna."))
+      ? h("div", { className: "wms-3d-legend-glossario" }, h("small", null, "Siga as placas no chão: elas mostram a prateleira, o endereço principal e a menor disponibilidade. Clique na caixa para abrir o detalhe completo."))
       : null,
     h(
       "div",
@@ -564,12 +594,40 @@ function WarehouseScene({ data }) {
           const bayLabel = makeSprite(bayLabelTexto, {
             bg: "rgba(8, 13, 22, .92)",
             fg: "#f8fafc",
-            size: 18,
-            scale: [2.45, 0.82]
+            size: 14,
+            scale: [1.95, 0.6]
           });
           if (bayLabel) {
             bayLabel.position.set(0, 7.88, 0);
             bayGroup.add(bayLabel);
+          }
+
+          const pisoCor = menorDisponivelBay === null ? "rgba(15, 23, 42, .88)" :
+            menorDisponivelBay <= 2 ? "rgba(244, 63, 94, .92)" :
+            menorDisponivelBay <= 5 ? "rgba(245, 158, 11, .9)" :
+            "rgba(34, 197, 94, .82)";
+          const pisoTexto = menorDisponivelBay === null
+            ? `P${String(prateleira).padStart(2, "0")}  ${enderecoPrincipal}${extraEnderecos}`
+            : `P${String(prateleira).padStart(2, "0")}  menor ${menorDisponivelBay}\n${enderecoPrincipal}${extraEnderecos}`;
+          const floorLabel = makeFloorLabel(pisoTexto, { bg: pisoCor, fg: "#fff", width: 5.25, height: 1.25, size: 36 });
+          if (floorLabel) {
+            floorLabel.position.set(-xPos * 0.48, 0.075, 0);
+            bayGroup.add(floorLabel);
+            if (bayItems[0]) {
+              floorLabel.userData.item = {
+                prodcor: bayItems[0].prodcor,
+                descProduto: bayItems[0].descProduto,
+                cor: bayItems[0].cor,
+                tamanho: bayItems[0].tamanho,
+                grade: bayItems[0].grade,
+                caixa: bayItems[0].caixa,
+                endereco: bayItems[0].endereco,
+                quantidadeEstoque: bayItems[0].quantidadeEstoque,
+                quantidadeReservada: bayItems[0].quantidadeReservada,
+                quantidadeDisponivel: bayItems[0].quantidadeDisponivel
+              };
+              clickTargetsRef.current.push({ mesh: floorLabel, item: floorLabel.userData.item });
+            }
           }
 
           if (pct !== null) {
