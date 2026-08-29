@@ -938,10 +938,32 @@ function WarehouseScene({ data }) {
       renderer.domElement.style.cursor = "default";
       window.dispatchEvent(new CustomEvent("wms-item-hover", { detail: null }));
     };
+    const onWheel = event => {
+      if (modeRef.current !== "corredor") return;
+      event.preventDefault();
+      const direction = new THREE.Vector3();
+      camera.getWorldDirection(direction);
+      direction.y *= 0.35;
+      if (direction.lengthSq() > 0.0001) direction.normalize();
+      const amount = Math.max(-4, Math.min(4, event.deltaY * 0.008));
+      const move = direction.multiplyScalar(amount);
+      const bounds = walkBoundsRef.current;
+      let nextX = camera.position.x + move.x;
+      let nextY = camera.position.y + move.y;
+      let nextZ = camera.position.z + move.z;
+      if (bounds) {
+        nextX = Math.min(bounds.maxX, Math.max(bounds.minX, nextX));
+        nextZ = Math.min(bounds.maxZ, Math.max(bounds.minZ, nextZ));
+      }
+      nextY = Math.min(6.5, Math.max(1.05, nextY));
+      camera.position.set(nextX, nextY, nextZ);
+      applyFirstPersonLook();
+    };
     renderer.domElement.addEventListener("pointerdown", onPointerDown);
     renderer.domElement.addEventListener("pointerup", onPointerUp);
     renderer.domElement.addEventListener("pointermove", onPointerMove);
     renderer.domElement.addEventListener("pointerleave", onPointerLeave);
+    renderer.domElement.addEventListener("wheel", onWheel, { passive: false });
 
     let frame = 0;
     const animate = () => {
@@ -1031,6 +1053,7 @@ function WarehouseScene({ data }) {
       renderer.domElement.removeEventListener("pointerup", onPointerUp);
       renderer.domElement.removeEventListener("pointermove", onPointerMove);
       renderer.domElement.removeEventListener("pointerleave", onPointerLeave);
+      renderer.domElement.removeEventListener("wheel", onWheel);
       resizeObserver?.disconnect();
       controls.dispose();
       renderer.dispose();
