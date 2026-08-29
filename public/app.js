@@ -901,7 +901,7 @@ function renderLocalizacao() {
   if (el.localVoltarGeral) el.localVoltarGeral.hidden = state.localizacao.modo !== "corredor";
 
   const ruaSelecionada = state.localizacao.corredorRua;
-  const itensRua = itensDoCorredorEmFoco(todosOsItens, ruaSelecionada);
+  const itensRua = itensDoCorredorEmFoco(itensBaixoEstoque, ruaSelecionada);
   const prateleiras = new Set(itensRua.map(item => parseEndereco(item.endereco).prateleira));
   const colunaBaseSet = new Set(itensRua.map(item => parseEndereco(item.endereco).colunaBase));
   const itemFoco = itensRua.find(item => caixaFiltroAtivo() && txt(item.caixa).toUpperCase().includes(caixaFiltroAtivo()))
