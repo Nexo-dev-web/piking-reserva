@@ -474,6 +474,11 @@ function gruposVisiveisBase() {
     .filter(grupo => grupo.itens.length);
 }
 
+function gruposBaixoEstoqueParaLocalizacao() {
+  const termo = state.busca.trim().toUpperCase();
+  return termo ? state.grupos.filter(grupo => textoBusca(grupo).includes(termo)) : [...state.grupos];
+}
+
 function enderecosComQtd(grupo) {
   const mapa = new Map();
   for (const item of grupo.itens || []) {
@@ -844,7 +849,8 @@ function garantirFallbackCorredor(itensRua, ruaSelecionada) {
 }
 
 function renderLocalizacao() {
-  const todosOsItens = state.todosProdutos.length ? state.todosProdutos : todosItens(gruposFiltrados());
+  const gruposLocalizacao = gruposBaixoEstoqueParaLocalizacao();
+  const todosOsItens = todosItens(gruposLocalizacao);
   const capacidadeCaixaGeral = capacidadeCaixaAtual();
   const todasAsRuas = ruasDisponiveis(todosOsItens);
   const limiteDisponivelAtual = Math.max(0, Number(state.config?.limiteDisponivel) || 10);
@@ -855,7 +861,7 @@ function renderLocalizacao() {
   renderRankingCaixas(todosOsItens);
   renderResumoRuas(todasAsRuas, ocupacaoPorRuaGeral, piorRuaGeralAbs, state.localizacao.modo === "corredor" ? state.localizacao.corredorRua : null);
 
-  const itensBaixoEstoque = todosItens(gruposFiltrados());
+  const itensBaixoEstoque = todosOsItens;
   const itens = itensFiltradosPorLocalizacao(itensBaixoEstoque);
   const ruas = todasAsRuas;
 
