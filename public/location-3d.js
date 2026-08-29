@@ -203,7 +203,7 @@ function Legend({ modo }) {
       h("span", { className: "dot baixa" }), h("small", null, "tem prodcor crítico/ruptura")
     ),
     modo === "corredor"
-      ? h("div", { className: "wms-3d-legend-glossario" }, h("small", null, "Cada bloco mostra PRODUTO, CAIXA e ENDEREÇO completo. P19 = prateleira 19 · L10/L20/L50 = altura/coluna."))
+      ? h("div", { className: "wms-3d-legend-glossario" }, h("small", null, "Clique em uma caixa para ver produto, caixa, endereço completo, tamanho, grade e cor. P09 = prateleira 09 · L10/L20/L50 = altura/coluna."))
       : null,
     h(
       "div",
@@ -488,20 +488,6 @@ function WarehouseScene({ data }) {
           focoPos = mesh.position.clone();
         }
 
-        const tag = makeSprite(`Produto: ${item.prodcor}\nCaixa: ${item.caixa || "sem caixa"}\nEndereço: ${item.endereco}`, {
-          bg: "rgba(15, 23, 42, .94)",
-          fg: "#fff",
-          size: 20,
-          scale: [2.7, 1.4]
-        });
-        if (tag) {
-          tag.position.set(mesh.position.x, mesh.position.y + 0.92, mesh.position.z);
-          dynamicGroup.add(tag);
-          proximityTagsRef.current.push(tag);
-          tag.userData.item = mesh.userData.item;
-          clickTargetsRef.current.push({ mesh: tag, item: mesh.userData.item });
-        }
-
         const qtdTag = makeSprite(`${item.quantidadeDisponivel}`, {
           bg: item.quantidadeDisponivel <= 2 ? "rgba(244, 63, 94, .95)" : item.quantidadeDisponivel <= 5 ? "rgba(251, 146, 60, .95)" : "rgba(34, 197, 94, .9)",
           fg: "#fff",
@@ -570,19 +556,19 @@ function WarehouseScene({ data }) {
 
           const enderecosBay = Array.from(new Set(bayItems.map(item => txt(item.endereco)).filter(Boolean)))
             .sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true }));
-          const enderecosResumo = enderecosBay.slice(0, 2).join(" / ");
-          const extraEnderecos = enderecosBay.length > 2 ? ` +${enderecosBay.length - 2}` : "";
+          const enderecoPrincipal = enderecosBay[0] || selectedRua;
+          const extraEnderecos = enderecosBay.length > 1 ? ` +${enderecosBay.length - 1}` : "";
           const bayLabelTexto = pct === null
-            ? `P${String(prateleira).padStart(2, "0")} · ${sideKey === "par" ? "lado par" : "lado ímpar"}\nEnd.: ${enderecosResumo || selectedRua}${extraEnderecos}`
-            : `P${String(prateleira).padStart(2, "0")} · ${sideKey === "par" ? "lado par" : "lado ímpar"} · menor ${menorDisponivelBay}\nEnd.: ${enderecosResumo || selectedRua}${extraEnderecos}`;
+            ? `P${String(prateleira).padStart(2, "0")} · ${sideKey === "par" ? "par" : "ímpar"}\n${enderecoPrincipal}${extraEnderecos}`
+            : `P${String(prateleira).padStart(2, "0")} · menor ${menorDisponivelBay}\n${enderecoPrincipal}${extraEnderecos}`;
           const bayLabel = makeSprite(bayLabelTexto, {
-            bg: "rgba(248, 250, 252, .94)",
-            fg: "#111827",
-            size: 24,
-            scale: [3.2, 1.3]
+            bg: "rgba(8, 13, 22, .92)",
+            fg: "#f8fafc",
+            size: 18,
+            scale: [2.45, 0.82]
           });
           if (bayLabel) {
-            bayLabel.position.set(0, 7.42, 0);
+            bayLabel.position.set(0, 7.88, 0);
             bayGroup.add(bayLabel);
           }
 
