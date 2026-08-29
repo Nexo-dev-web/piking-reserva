@@ -1057,20 +1057,19 @@ function render(dados) {
 
   const statsPrioridade = itemPrioridade ? `
     <span class="prioridade-stats">
-      <span class="prioridade-stat"><b>${esc(itemPrioridade.quantidadeEstoque)}</b><small>estoque físico</small></span>
-      <span class="prioridade-stat"><b>${esc(itemPrioridade.quantidadeReservada)}</b><small>reservado p/ pedidos</small></span>
-      <span class="prioridade-stat${primeiro.menorDisponivel < 0 ? " neg" : ""}"><b>${esc(primeiro.menorDisponivel)}</b><small>disponível pra pegar</small></span>
+      <span class="prioridade-stat"><b>${esc(itemPrioridade.quantidadeEstoque)}</b><small>peças no endereço</small></span>
+      <span class="prioridade-stat"><b>${esc(itemPrioridade.quantidadeReservada)}</b><small>peças reservadas</small></span>
+      <span class="prioridade-stat${primeiro.menorDisponivel < 0 ? " neg" : ""}"><b>${esc(primeiro.menorDisponivel)}</b><small>saldo para picking</small></span>
     </span>
-    ${primeiro.menorDisponivel < 0 ? `<span class="prioridade-alerta">Reservaram mais do que tem no estoque — faltam ${Math.abs(primeiro.menorDisponivel)} peças, provável erro de contagem, precisa checar na mão</span>` : ""}
-  ` : primeiro ? `<span class="prioridade-stats"><span class="prioridade-stat"><b>${esc(primeiro.menorDisponivel)}</b><small>disponível pra pegar</small></span></span>` : "";
+    ${primeiro.menorDisponivel < 0 ? `<span class="prioridade-alerta">Ação: saldo negativo. Existem ${esc(itemPrioridade.quantidadeReservada)} peças reservadas e só ${esc(itemPrioridade.quantidadeEstoque)} no endereço; faltam ${Math.abs(primeiro.menorDisponivel)} peças para atender o picking.</span>` : ""}
+  ` : primeiro ? `<span class="prioridade-stats"><span class="prioridade-stat"><b>${esc(primeiro.menorDisponivel)}</b><small>saldo para picking</small></span></span>` : "";
 
   el.heroPrioridade.innerHTML = primeiro
     ? `
       <span class="prioridade-tag">Comece por aqui</span>
-      <strong>${esc(primeiro.prodcor)}</strong>
-      <span class="prioridade-desc">${esc(primeiro.descProduto)}</span>
+      <span class="prioridade-produto"><strong>${esc(primeiro.prodcor)}</strong><span>${esc(primeiro.descProduto)}</span></span>
       ${statsPrioridade}
-      ${enderecoPrioridade ? `<span class="prioridade-local">${PIN_SVG}${renderEnderecoDetalhado(enderecoPrioridade.endereco)}</span>` : ""}
+      ${enderecoPrioridade ? `<span class="prioridade-local"><b>Conferir primeiro:</b> ${PIN_SVG}${renderEnderecoDetalhado(enderecoPrioridade.endereco)}${itemPrioridade?.caixa ? ` · Caixa ${esc(itemPrioridade.caixa)}` : ""}</span>` : ""}
     `
     : `<span class="prioridade-tag ok">Tudo em dia</span><span class="prioridade-desc">Nenhum produto abaixo ou igual a ${limite} disponível agora.</span>`;
 

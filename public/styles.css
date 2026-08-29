@@ -310,10 +310,10 @@ h2 { font-size: 18px; }
 .hero-prioridade {
   position: relative;
   z-index: 1;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px 14px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 10px 16px;
   margin-top: 16px;
   padding: 14px 18px;
   border: 1px solid rgba(241, 18, 42, .45);
@@ -322,6 +322,7 @@ h2 { font-size: 18px; }
   background: linear-gradient(90deg, rgba(241, 18, 42, .16), rgba(241, 18, 42, .04));
 }
 .prioridade-tag {
+  align-self: start;
   padding: 4px 10px;
   border-radius: 999px;
   background: var(--red);
@@ -332,8 +333,16 @@ h2 { font-size: 18px; }
   letter-spacing: .04em;
 }
 .prioridade-tag.ok { background: var(--green); color: #08140b; }
-.hero-prioridade strong { font-size: 24px; font-weight: 950; }
-.prioridade-desc { color: var(--soft, #d4d4d8); font-size: 15px; font-weight: 700; }
+.prioridade-produto {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 14px;
+  min-width: 0;
+}
+.prioridade-produto strong { font-size: 24px; line-height: 1.1; font-weight: 950; }
+.prioridade-produto span,
+.prioridade-desc { color: var(--soft, #d4d4d8); font-size: 15px; font-weight: 800; }
 .prioridade-metric {
   padding: 3px 10px;
   border-radius: 999px;
@@ -343,10 +352,10 @@ h2 { font-size: 18px; }
   font-weight: 950;
 }
 .prioridade-stats {
-  display: flex;
-  flex-wrap: wrap;
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(160px, 1fr));
   gap: 8px;
-  width: 100%;
 }
 .prioridade-stat {
   display: grid;
@@ -367,13 +376,16 @@ h2 { font-size: 18px; }
   font-weight: 800;
 }
 .prioridade-local {
+  grid-column: 1 / -1;
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
-  color: var(--muted);
+  gap: 6px;
+  color: #d9dde5;
   font-size: 13px;
   font-weight: 800;
 }
+.prioridade-local b { color: #fff; }
 
 .hero-briefing { display: grid; gap: 8px; margin-top: 14px; }
 .briefing-lead { margin: 0 0 4px; color: var(--soft, #d4d4d8); font-size: 15px; font-weight: 600; line-height: 1.5; }

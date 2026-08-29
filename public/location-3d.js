@@ -203,7 +203,7 @@ function Legend({ modo }) {
       h("span", { className: "dot baixa" }), h("small", null, "tem prodcor crítico/ruptura")
     ),
     modo === "corredor"
-      ? h("div", { className: "wms-3d-legend-glossario" }, h("small", null, "P19 = prateleira 19 · ímpar/par = lado da rua · vermelho = tem peça acabando ali"))
+      ? h("div", { className: "wms-3d-legend-glossario" }, h("small", null, "Cada bloco mostra PRODUTO, CAIXA e ENDEREÇO completo. P19 = prateleira 19 · L10/L20/L50 = altura/coluna."))
       : null,
     h(
       "div",
@@ -568,9 +568,13 @@ function WarehouseScene({ data }) {
           rackBase.position.set(0, 0.05, 0);
           bayGroup.add(rackBase);
 
+          const enderecosBay = Array.from(new Set(bayItems.map(item => txt(item.endereco)).filter(Boolean)))
+            .sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true }));
+          const enderecosResumo = enderecosBay.slice(0, 2).join(" / ");
+          const extraEnderecos = enderecosBay.length > 2 ? ` +${enderecosBay.length - 2}` : "";
           const bayLabelTexto = pct === null
-            ? `Prateleira ${String(prateleira).padStart(2, "0")}\nlado ${sideKey === "par" ? "par" : "ímpar"}`
-            : `Prateleira ${String(prateleira).padStart(2, "0")} - lado ${sideKey === "par" ? "par" : "ímpar"}\nsó ${menorDisponivelBay} disponível (${pct.toFixed(0)}% cheia)`;
+            ? `P${String(prateleira).padStart(2, "0")} · ${sideKey === "par" ? "lado par" : "lado ímpar"}\nEnd.: ${enderecosResumo || selectedRua}${extraEnderecos}`
+            : `P${String(prateleira).padStart(2, "0")} · ${sideKey === "par" ? "lado par" : "lado ímpar"} · menor ${menorDisponivelBay}\nEnd.: ${enderecosResumo || selectedRua}${extraEnderecos}`;
           const bayLabel = makeSprite(bayLabelTexto, {
             bg: "rgba(248, 250, 252, .94)",
             fg: "#111827",
