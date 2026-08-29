@@ -358,6 +358,25 @@ function WarehouseScene({ data }) {
     const raycaster = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
     let pointerDown = null;
+    let lookDrag = null;
+    const lookState = { yaw: 0, pitch: 0 };
+
+    const syncLookFromCamera = () => {
+      const direction = new THREE.Vector3();
+      camera.getWorldDirection(direction);
+      lookState.yaw = Math.atan2(direction.x, direction.z);
+      lookState.pitch = Math.asin(Math.max(-0.85, Math.min(0.85, direction.y)));
+    };
+
+    const applyFirstPersonLook = () => {
+      const target = new THREE.Vector3(
+        Math.sin(lookState.yaw) * Math.cos(lookState.pitch),
+        Math.sin(lookState.pitch),
+        Math.cos(lookState.yaw) * Math.cos(lookState.pitch)
+      ).add(camera.position);
+      controls.target.copy(target);
+      camera.lookAt(target);
+    };
 
     const clearScene = () => {
       while (dynamicGroup.children.length) {
@@ -798,6 +817,7 @@ function WarehouseScene({ data }) {
       modeRef.current = modo;
 
       if (modo === "geral") {
+        controls.enabled = true;
         walkBoundsRef.current = null;
         const { totalWidth } = buildOverview(payload);
         camera.fov = 46;
@@ -811,6 +831,7 @@ function WarehouseScene({ data }) {
         controls.update();
         renderer.domElement.style.cursor = "default";
       } else {
+        controls.enabled = false;
         const { startZ, focoPos } = buildCorredor(payload);
         camera.fov = focoPos ? 34 : 42;
         camera.updateProjectionMatrix();
@@ -826,6 +847,7 @@ function WarehouseScene({ data }) {
           controls.maxDistance = 50;
         }
         camera.lookAt(controls.target);
+        syncLookFromCamera();
         controls.update();
         renderer.domElement.style.cursor = "default";
       }
@@ -854,8 +876,21 @@ function WarehouseScene({ data }) {
 
     const onPointerDown = event => {
       pointerDown = { x: event.clientX, y: event.clientY, time: performance.now() };
+      if (modeRef.current === "corredor" && event.button === 0) {
+        lookDrag = { x: event.clientX, y: event.clientY, moved: false };
+        renderer.domElement.setPointerCapture?.(event.pointerId);
+      }
     };
     const onPointerUp = event => {
+      if (lookDrag) {
+        renderer.domElement.releasePointerCapture?.(event.pointerId);
+        const dragged = lookDrag.moved;
+        lookDrag = null;
+        if (dragged) {
+          pointerDown = null;
+          return;
+        }
+      }
       if (!pointerDown) return;
       const dx = event.clientX - pointerDown.x;
       const dy = event.clientY - pointerDown.y;
@@ -876,6 +911,16 @@ function WarehouseScene({ data }) {
       }
     };
     const onPointerMove = event => {
+      if (lookDrag && modeRef.current === "corredor") {
+        const dx = event.clientX - lookDrag.x;
+        const dy = event.clientY - lookDrag.y;
+        if (Math.abs(dx) + Math.abs(dy) > 2) lookDrag.moved = true;
+        lookDrag.x = event.clientX;
+        lookDrag.y = event.clientY;
+        lookState.yaw -= dx * 0.004;
+        lookState.pitch = Math.max(-0.78, Math.min(0.78, lookState.pitch + dy * 0.003));
+        applyFirstPersonLook();
+      }
       if (!clickTargetsRef.current.length) return;
       const rect = renderer.domElement.getBoundingClientRect();
       pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
@@ -889,6 +934,7 @@ function WarehouseScene({ data }) {
       }));
     };
     const onPointerLeave = () => {
+      lookDrag = null;
       renderer.domElement.style.cursor = "default";
       window.dispatchEvent(new CustomEvent("wms-item-hover", { detail: null }));
     };
@@ -928,9 +974,8 @@ function WarehouseScene({ data }) {
           const appliedZ = nextZ - camera.position.z;
           camera.position.x += appliedX;
           camera.position.z += appliedZ;
-          controls.target.x += appliedX;
-          controls.target.z += appliedZ;
           camera.position.y = WALK_EYE_HEIGHT;
+          applyFirstPersonLook();
         }
       }
 
@@ -956,7 +1001,8 @@ function WarehouseScene({ data }) {
         }
       }
 
-      controls.update();
+      if (modeRef.current === "corredor") applyFirstPersonLook();
+      else controls.update();
       renderer.render(scene, camera);
     };
     animate();
