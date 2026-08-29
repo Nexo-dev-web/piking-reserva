@@ -190,7 +190,7 @@ function makeSprite(texto, { bg = "rgba(17, 24, 39, .9)", fg = "#fff", size = 44
   return sprite;
 }
 
-function makeFloorLabel(texto, { bg = "rgba(244, 63, 94, .9)", fg = "#fff", width = 4.6, height = 1.15, size = 42 } = {}) {
+function makeFloorLabel(texto, { bg = "rgba(244, 63, 94, .9)", fg = "#fff", width = 2.8, height = 0.74, size = 30 } = {}) {
   const canvas = document.createElement("canvas");
   canvas.width = 1024;
   canvas.height = 256;
@@ -199,18 +199,18 @@ function makeFloorLabel(texto, { bg = "rgba(244, 63, 94, .9)", fg = "#fff", widt
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = bg;
-  roundRect(ctx, 14, 14, canvas.width - 28, canvas.height - 28, 26);
+  roundRect(ctx, 30, 38, canvas.width - 60, canvas.height - 76, 24);
   ctx.fill();
   ctx.strokeStyle = "rgba(255,255,255,.45)";
-  ctx.lineWidth = 5;
-  roundRect(ctx, 24, 24, canvas.width - 48, canvas.height - 48, 22);
+  ctx.lineWidth = 4;
+  roundRect(ctx, 44, 52, canvas.width - 88, canvas.height - 104, 18);
   ctx.stroke();
 
   ctx.fillStyle = fg;
   ctx.font = `950 ${size}px Inter, Arial, sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  wrapText(ctx, texto, canvas.width / 2, canvas.height / 2, canvas.width - 90, size + 12);
+  wrapText(ctx, texto, canvas.width / 2, canvas.height / 2, canvas.width - 140, size + 9);
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
@@ -678,11 +678,11 @@ function WarehouseScene({ data }) {
             menorDisponivelBay <= 5 ? "rgba(245, 158, 11, .9)" :
             "rgba(34, 197, 94, .82)";
           const pisoTexto = menorDisponivelBay === null
-            ? `P${String(prateleira).padStart(2, "0")}  ${enderecoPrincipal}${extraEnderecos}`
-            : `P${String(prateleira).padStart(2, "0")}  menor ${menorDisponivelBay}\n${enderecoPrincipal}${extraEnderecos}`;
-          const floorLabel = makeFloorLabel(pisoTexto, { bg: pisoCor, fg: "#fff", width: 5.25, height: 1.25, size: 36 });
+            ? `P${String(prateleira).padStart(2, "0")}\n${enderecoPrincipal}${extraEnderecos}`
+            : `P${String(prateleira).padStart(2, "0")} · menor ${menorDisponivelBay}\n${enderecoPrincipal}${extraEnderecos}`;
+          const floorLabel = makeFloorLabel(pisoTexto, { bg: pisoCor, fg: "#fff", width: 3.15, height: 0.86, size: 26 });
           if (floorLabel) {
-            floorLabel.position.set(-xPos * 0.48, 0.075, 0);
+            floorLabel.position.set(xPos < 0 ? -2.25 : 2.25, 0.14, 0);
             bayGroup.add(floorLabel);
             if (bayItems[0]) {
               floorLabel.userData.item = {
