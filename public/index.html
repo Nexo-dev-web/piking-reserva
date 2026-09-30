@@ -17,6 +17,7 @@
     <link rel="stylesheet" href="/styles.css" />
     <script src="/vendor/react.production.min.js"></script>
     <script src="/vendor/react-dom.production.min.js"></script>
+    <script src="/vendor/xlsx.full.min.js"></script>
     <script src="/app.js" type="module"></script>
     <script src="/location-3d.js" type="module"></script>
   </head>
@@ -32,10 +33,10 @@
           <label>
             Caminho da planilha
             <span class="path-picker">
-              <input id="setup-planilha-path" type="text" autocomplete="off" placeholder="\servidor\pasta\WMS_GERAL.xlsm" />
+              <input id="setup-planilha-path" type="text" autocomplete="off" placeholder="\\servidor\pasta\WMS_GERAL.xlsm" />
               <button type="button" class="secondary browse-planilha" data-target="setup-planilha-path">Procurar…</button>
             </span>
-            <small class="field-hint">Onde está o arquivo WMS_GERAL (.xlsm). Pode ser pasta de rede, ex.: <code>\servidor\wms\WMS_GERAL.xlsm</code>, ou local, ex.: <code>C:\Planilhas\WMS_GERAL.xlsm</code>. Use "Procurar…" para escolher na janela do Windows.</small>
+            <small id="setup-path-hint" class="field-hint">Onde está o arquivo WMS_GERAL (.xlsm). Pode ser pasta de rede, ex.: <code>\\servidor\wms\WMS_GERAL.xlsm</code>, ou local, ex.: <code>C:\Planilhas\WMS_GERAL.xlsm</code>. Use "Procurar…" para escolher na janela do Windows.</small>
           </label>
           <div class="setup-row">
             <label>
@@ -44,9 +45,9 @@
               <small class="field-hint">De quanto em quanto tempo o painel relê a planilha sozinho.</small>
             </label>
             <label>
-              Limite disponível
+              Avisar quando tiver até (peças)
               <input id="setup-limite-disponivel" type="number" min="0" max="999999" step="1" placeholder="Ex.: 10" />
-              <small class="field-hint">Item com quantidade disponível igual ou abaixo desse número entra no radar de ruptura.</small>
+              <small class="field-hint">Escolha o número de peças para o alerta: item com essa quantidade disponível ou menos entra no radar de ruptura.</small>
             </label>
             <label>
               Peças por caixa
@@ -58,7 +59,7 @@
             <input id="setup-atualizar-excel-antes" type="checkbox" />
             <span>Abrir Excel, atualizar conexões, salvar e fechar antes de ler</span>
           </label>
-          <p class="setup-copy small">Marque se a planilha puxa dados de conexões externas. O computador do servidor precisa ter Excel e permissão de escrita na pasta. Deixe desmarcado se a planilha já é salva atualizada por outra pessoa.</p>
+          <p id="setup-excel-hint" class="setup-copy small">Marque se a planilha puxa dados de conexões externas. O computador do servidor precisa ter Excel e permissão de escrita na pasta. Deixe desmarcado se a planilha já é salva atualizada por outra pessoa.</p>
           <button type="submit">Entrar no painel</button>
           <p id="setup-message"></p>
         </form>
@@ -103,7 +104,7 @@
             <input id="intervalo-minutos" name="intervaloMinutos" type="number" min="1" max="1440" step="1" />
           </label>
           <label>
-            Limite disponível
+            Avisar com até (peças)
             <input id="limite-disponivel" name="limiteDisponivel" type="number" min="0" max="999999" step="1" />
           </label>
           <label>

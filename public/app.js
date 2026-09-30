@@ -1,4 +1,6 @@
-﻿const LIMIAR_RUPTURA = 2;
+import { api, detectarModo, modoNavegador, suportaReleitura, arquivoSelecionado, precisaPermissao } from "./browser-api.js";
+
+const LIMIAR_RUPTURA = 2;
 const LIMIAR_CRITICO = 5;
 
 const state = {
@@ -542,7 +544,7 @@ function itensTodosFiltrados() {
 async function carregarTodosProdutos() {
   el.produtosTotal.textContent = "Carregando...";
   try {
-    const resposta = await fetch("/api/wms/todos-produtos", { cache: "no-store" });
+    const resposta = await api("/api/wms/todos-produtos", { cache: "no-store" });
     const dados = await lerJson(resposta);
     if (!resposta.ok) throw new Error(dados.erro || "Falha ao carregar todos os produtos.");
     state.todosProdutos = (dados.resumo || []).flatMap(grupo => grupo.itens);
@@ -1147,7 +1149,7 @@ async function lerJson(resposta) {
 }
 
 async function carregarConfig() {
-  const resposta = await fetch("/api/config", { cache: "no-store" });
+  const resposta = await api("/api/config", { cache: "no-store" });
   aplicarConfig(await lerJson(resposta));
 }
 
@@ -1172,7 +1174,7 @@ function payloadDoPainel() {
 }
 
 async function salvarConfig(payload) {
-  const resposta = await fetch("/api/config", {
+  const resposta = await api("/api/config", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
@@ -1190,8 +1192,8 @@ async function carregar(manual = true) {
   el.status.textContent = "Lendo WMS_GERAL...";
   try {
     const [resposta, respostaTodos] = await Promise.all([
-      fetch("/api/wms/baixo-estoque", { cache: "no-store" }),
-      fetch("/api/wms/todos-produtos", { cache: "no-store" })
+      api("/api/wms/baixo-estoque", { cache: "no-store" }),
+      api("/api/wms/todos-produtos", { cache: "no-store" })
     ]);
     const dados = await lerJson(resposta);
     if (!resposta.ok) throw new Error(dados.erro || "Falha ao carregar dados.");
@@ -1246,7 +1248,7 @@ async function atualizarExcel() {
   el.refreshExcel.disabled = true;
   el.syncState.textContent = "Atualizando Excel";
   try {
-    const resposta = await fetch("/api/wms/atualizar-planilha", { method: "POST" });
+    const resposta = await api("/api/wms/atualizar-planilha", { method: "POST" });
     const dados = await lerJson(resposta);
     if (!resposta.ok) throw new Error(dados.erro || "Falha ao atualizar Excel.");
     await carregar(true);
@@ -1305,7 +1307,7 @@ for (const botao of document.querySelectorAll(".browse-planilha")) {
     const mensagem = botao.closest("#setup-form") ? el.setupMessage : el.status;
     botao.disabled = true;
     try {
-      const resposta = await fetch("/api/escolher-planilha", {
+      const resposta = await api("/api/escolher-planilha", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ atual: campo.value.trim() })
@@ -1429,5 +1431,30 @@ document.querySelectorAll(".bar-chart").forEach(chart => {
   });
 });
 
+function prepararModoNavegador() {
+  for (const botao of document.querySelectorAll(".browse-planilha")) botao.textContent = "Selecionar planilha";
+  for (const id of ["setup-planilha-path", "planilha-path"]) {
+    const campo = $(`#${id}`);
+    campo.readOnly = true;
+    campo.placeholder = "Nenhuma planilha selecionada";
+  }
+  $("#setup-path-hint").textContent = suportaReleitura()
+    ? 'Clique em "Selecionar planilha" e escolha o arquivo WMS_GERAL (.xlsm). Na janela do Windows dá para entrar na pasta de rede (ex.: digite \\\\servidor\\wms na barra de endereço da janela). O painel relê o arquivo sozinho no intervalo abaixo.'
+    : 'Clique em "Selecionar planilha" e escolha o arquivo WMS_GERAL (.xlsm). Neste navegador a planilha não é relida sozinha: use Chrome ou Edge para leitura automática, ou selecione o arquivo de novo quando ele mudar.';
+  for (const id of ["setup-atualizar-excel-antes", "atualizar-excel-antes"]) $(`#${id}`).closest("label").hidden = true;
+  $("#setup-excel-hint").textContent = "Pelo navegador não dá para abrir o Excel e atualizar as conexões. Se a planilha puxa dados externos, atualize e salve no Excel; o painel pega a versão salva.";
+  el.refreshExcel.hidden = true;
+}
+
+await detectarModo();
+if (modoNavegador()) prepararModoNavegador();
 await carregarConfig();
-await carregar(true);
+if (modoNavegador() && !arquivoSelecionado()) {
+  el.setupScreen.hidden = false;
+  el.setupMessage.textContent = "Selecione a planilha para começar.";
+} else if (modoNavegador() && await precisaPermissao()) {
+  el.setupScreen.hidden = false;
+  el.setupMessage.textContent = `Clique em "Entrar no painel" para liberar a leitura de "${state.config.planilhaPath}".`;
+} else {
+  await carregar(true);
+}
