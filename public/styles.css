@@ -1829,3 +1829,34 @@ tbody tr:nth-child(even) { background: rgba(255,255,255,.025); }
   .print-bar-row i { display: block; height: 7px; overflow: hidden; border-radius: 999px; background: #2a2f38; }
   .print-bar-row i b { display: block; height: 100%; background: #f1122a; }
 }
+
+.setup-card { position: relative; }
+.setup-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 38px;
+  min-height: 38px;
+  padding: 0;
+  border-color: var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  background: transparent;
+  font-size: 24px;
+  line-height: 1;
+}
+.setup-close:hover { color: var(--text); background: var(--panel-soft); }
+
+.path-picker { display: flex; gap: 8px; }
+.path-picker input { flex: 1; min-width: 0; }
+.path-picker button { flex: none; white-space: nowrap; }
+
+.field-hint {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  opacity: .85;
+}
+.field-hint code { font-size: 11px; color: var(--text); }
+.setup-row label { align-content: start; }

@@ -543,7 +543,7 @@ async function carregarTodosProdutos() {
   el.produtosTotal.textContent = "Carregando...";
   try {
     const resposta = await fetch("/api/wms/todos-produtos", { cache: "no-store" });
-    const dados = await resposta.json();
+    const dados = await lerJson(resposta);
     if (!resposta.ok) throw new Error(dados.erro || "Falha ao carregar todos os produtos.");
     state.todosProdutos = (dados.resumo || []).flatMap(grupo => grupo.itens);
     state.todosCarregado = true;
@@ -1138,9 +1138,17 @@ function aplicarConfig(config) {
   state.timer = setInterval(() => carregar(false), ms);
 }
 
+async function lerJson(resposta) {
+  const tipo = resposta.headers.get("content-type") || "";
+  if (!tipo.includes("application/json")) {
+    throw new Error("Servidor da planilha não encontrado. Abra o painel pelo endereço do servidor local (npm start), não pelo Netlify.");
+  }
+  return resposta.json();
+}
+
 async function carregarConfig() {
   const resposta = await fetch("/api/config", { cache: "no-store" });
-  aplicarConfig(await resposta.json());
+  aplicarConfig(await lerJson(resposta));
 }
 
 function payloadDoSetup() {
@@ -1169,7 +1177,7 @@ async function salvarConfig(payload) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
   });
-  const config = await resposta.json();
+  const config = await lerJson(resposta);
   if (!resposta.ok) throw new Error(config.erro || "Nao foi possivel salvar.");
   aplicarConfig(config);
   return config;
@@ -1185,7 +1193,7 @@ async function carregar(manual = true) {
       fetch("/api/wms/baixo-estoque", { cache: "no-store" }),
       fetch("/api/wms/todos-produtos", { cache: "no-store" })
     ]);
-    const dados = await resposta.json();
+    const dados = await lerJson(resposta);
     if (!resposta.ok) throw new Error(dados.erro || "Falha ao carregar dados.");
     if (respostaTodos.ok) {
       const dadosTodos = await respostaTodos.json();
@@ -1239,7 +1247,7 @@ async function atualizarExcel() {
   el.syncState.textContent = "Atualizando Excel";
   try {
     const resposta = await fetch("/api/wms/atualizar-planilha", { method: "POST" });
-    const dados = await resposta.json();
+    const dados = await lerJson(resposta);
     if (!resposta.ok) throw new Error(dados.erro || "Falha ao atualizar Excel.");
     await carregar(true);
     if (dados.avisoAtualizacaoExcel) {
@@ -1287,6 +1295,32 @@ function limparFiltrosFinosDeLocalizacao() {
 }
 
 el.openSetup.addEventListener("click", () => { el.setupScreen.hidden = false; });
+$("#setup-close").addEventListener("click", () => { el.setupScreen.hidden = true; });
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape" && !el.setupScreen.hidden) el.setupScreen.hidden = true;
+});
+for (const botao of document.querySelectorAll(".browse-planilha")) {
+  botao.addEventListener("click", async () => {
+    const campo = $(`#${botao.dataset.target}`);
+    const mensagem = botao.closest("#setup-form") ? el.setupMessage : el.status;
+    botao.disabled = true;
+    try {
+      const resposta = await fetch("/api/escolher-planilha", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ atual: campo.value.trim() })
+      });
+      const dados = await lerJson(resposta);
+      if (!resposta.ok) throw new Error(dados.erro || "Não foi possível abrir a janela.");
+      if (dados.caminho) campo.value = dados.caminho;
+    } catch (erro) {
+      mensagem.hidden = false;
+      mensagem.textContent = erro.message;
+    } finally {
+      botao.disabled = false;
+    }
+  });
+}
 el.tabPainel.addEventListener("click", () => trocarVisao("painel"));
 el.tabProdutos.addEventListener("click", () => trocarVisao("produtos"));
 el.tabLocalizacao.addEventListener("click", () => trocarVisao("localizacao"));

@@ -385,7 +385,50 @@ app.post("/api/config", (req, res) => {
   res.json(config);
 });
 
-app.post("/api/wms/atualizar-planilha", async (_req, res, next) => {
+function escolherPlanilhaNoWindows(atual) {
+  const script = `
+Add-Type -AssemblyName System.Windows.Forms
+$dialogo = New-Object System.Windows.Forms.OpenFileDialog
+$dialogo.Title = "Selecionar planilha WMS"
+$dialogo.Filter = "Planilhas Excel (*.xlsm;*.xlsx;*.xls)|*.xlsm;*.xlsx;*.xls|Todos os arquivos (*.*)|*.*"
+$atual = $env:PLANILHA_ATUAL
+if ($atual) {
+  $pasta = Split-Path -Path $atual -Parent -ErrorAction SilentlyContinue
+  if ($pasta -and (Test-Path -LiteralPath $pasta)) { $dialogo.InitialDirectory = $pasta }
+}
+$dono = New-Object System.Windows.Forms.Form -Property @{ TopMost = $true }
+if ($dialogo.ShowDialog($dono) -eq [System.Windows.Forms.DialogResult]::OK) {
+  [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+  Write-Output $dialogo.FileName
+}
+$dono.Dispose()`;
+
+  return new Promise((resolve, reject) => {
+    const processo = spawn("powershell.exe", ["-NoProfile", "-STA", "-ExecutionPolicy", "Bypass", "-Command", script], {
+      env: { ...process.env, PLANILHA_ATUAL: atual }
+    });
+    let saida = "";
+    let erros = "";
+    processo.stdout.on("data", parte => { saida += parte.toString("utf8"); });
+    processo.stderr.on("data", parte => { erros += parte.toString("utf8"); });
+    processo.on("error", reject);
+    processo.on("close", codigo => {
+      if (codigo !== 0) reject(new Error(txt(erros) || "Não foi possível abrir a janela de seleção."));
+      else resolve(txt(saida));
+    });
+  });
+}
+
+app.post("/api/escolher-planilha", async (req, res, next) => {
+  try {
+    const caminho = await escolherPlanilhaNoWindows(txt(req.body?.atual) || lerConfig().planilhaPath);
+    res.json({ caminho });
+  } catch (erro) {
+    next(erro);
+  }
+});
+
+app.post("/api/wms/atualizar-planilha",async (_req, res, next) => {
   try {
     const configAtual = lerConfig();
     const { avisos } = await atualizarExcelSincronizado(configAtual.planilhaPath);

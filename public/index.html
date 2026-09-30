@@ -4,6 +4,16 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Picking Automation Radar</title>
+    <meta name="description" content="Radar de ruptura do picking Reserva" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://piking.netlify.app/" />
+    <meta property="og:title" content="Picking Automation Radar" />
+    <meta property="og:description" content="Radar de ruptura do picking Reserva" />
+    <meta property="og:image" content="https://piking.netlify.app/assets/og-reserva.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" type="image/png" href="/assets/reserva-logo.png" />
     <link rel="stylesheet" href="/styles.css" />
     <script src="/vendor/react.production.min.js"></script>
     <script src="/vendor/react-dom.production.min.js"></script>
@@ -13,6 +23,7 @@
   <body>
     <section id="setup-screen" class="setup-screen" hidden>
       <div class="setup-card">
+        <button id="setup-close" type="button" class="setup-close" aria-label="Fechar">&times;</button>
         <img class="setup-logo" src="/assets/reserva-logo.png" alt="Reserva" />
         <p class="tag">Picking Automation Radar</p>
         <h1>Configurar leitura</h1>
@@ -20,27 +31,34 @@
         <form id="setup-form" class="setup-form">
           <label>
             Caminho da planilha
-            <input id="setup-planilha-path" type="text" autocomplete="off" />
+            <span class="path-picker">
+              <input id="setup-planilha-path" type="text" autocomplete="off" placeholder="\servidor\pasta\WMS_GERAL.xlsm" />
+              <button type="button" class="secondary browse-planilha" data-target="setup-planilha-path">Procurar…</button>
+            </span>
+            <small class="field-hint">Onde está o arquivo WMS_GERAL (.xlsm). Pode ser pasta de rede, ex.: <code>\servidor\wms\WMS_GERAL.xlsm</code>, ou local, ex.: <code>C:\Planilhas\WMS_GERAL.xlsm</code>. Use "Procurar…" para escolher na janela do Windows.</small>
           </label>
           <div class="setup-row">
             <label>
               Buscar a cada quantos minutos
-              <input id="setup-intervalo-minutos" type="number" min="1" max="1440" step="1" />
+              <input id="setup-intervalo-minutos" type="number" min="1" max="1440" step="1" placeholder="Ex.: 5" />
+              <small class="field-hint">De quanto em quanto tempo o painel relê a planilha sozinho.</small>
             </label>
             <label>
               Limite disponível
-              <input id="setup-limite-disponivel" type="number" min="0" max="999999" step="1" />
+              <input id="setup-limite-disponivel" type="number" min="0" max="999999" step="1" placeholder="Ex.: 10" />
+              <small class="field-hint">Item com quantidade disponível igual ou abaixo desse número entra no radar de ruptura.</small>
             </label>
             <label>
               Peças por caixa
-              <input id="setup-capacidade-caixa" type="number" min="1" max="9999" step="1" />
+              <input id="setup-capacidade-caixa" type="number" min="1" max="9999" step="1" placeholder="Ex.: 50" />
+              <small class="field-hint">Quantas peças cabem numa caixa cheia. Usado no % de ocupação da visão 3D.</small>
             </label>
           </div>
-          <p class="setup-copy small">Usamos isso pra calcular o % de ocupação de cada prateleira na visão 3D. Pode mudar depois em Configurar.</p>
           <label class="check">
             <input id="setup-atualizar-excel-antes" type="checkbox" />
             <span>Abrir Excel, atualizar conexões, salvar e fechar antes de ler</span>
           </label>
+          <p class="setup-copy small">Marque se a planilha puxa dados de conexões externas. O computador do servidor precisa ter Excel e permissão de escrita na pasta. Deixe desmarcado se a planilha já é salva atualizada por outra pessoa.</p>
           <button type="submit">Entrar no painel</button>
           <p id="setup-message"></p>
         </form>
@@ -75,7 +93,10 @@
         <form id="config-form" class="config-form">
           <label class="path-field">
             Caminho da planilha
-            <input id="planilha-path" name="planilhaPath" type="text" autocomplete="off" />
+            <span class="path-picker">
+              <input id="planilha-path" name="planilhaPath" type="text" autocomplete="off" />
+              <button type="button" class="secondary browse-planilha" data-target="planilha-path">Procurar…</button>
+            </span>
           </label>
           <label>
             Buscar a cada
