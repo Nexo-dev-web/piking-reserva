@@ -2193,3 +2193,25 @@ textarea {
 }
 textarea:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
 .config-form .capacidade-tipo { grid-column: 1 / -1; }
+
+/* Botão de sair do corredor dentro do 3D (funciona também em tela cheia) */
+.wms-3d-sair-corredor {
+  justify-self: start;
+  padding: 10px 18px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--red);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 900;
+  box-shadow: 0 6px 18px rgba(241, 18, 42, .35);
+}
+.wms-3d-sair-corredor:hover { filter: brightness(1.1); }
+.wms-3d-shell.tela-cheia .wms-3d-sair-corredor {
+  position: fixed;
+  right: 28px;
+  bottom: 28px;
+  z-index: 20;
+  padding: 14px 24px;
+  font-size: 17px;
+}

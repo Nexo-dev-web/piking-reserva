@@ -1496,6 +1496,10 @@ if (el.localVoltarGeral) {
     renderLocalizacao();
   });
 }
+window.addEventListener("wms-voltar-geral", () => {
+  state.localizacao.modo = "geral";
+  renderLocalizacao();
+});
 el.localCapacidadeCaixa.addEventListener("change", event => {
   const capacidadeCaixa = Math.max(1, Number(event.target.value) || 50);
   event.target.value = capacidadeCaixa;

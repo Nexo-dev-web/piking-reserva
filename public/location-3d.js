@@ -332,7 +332,7 @@ function ComoLer({ modo, aberto, onToggle }) {
       ["Você está dentro do corredor", "Prateleiras ímpares de um lado, pares do outro, como no galpão."],
       ["Cada caixa tem um número em cima", "É quantas peças sobram nela. Vermelho = repor agora."],
       ["A caixa com contorno amarelo", "É a que você filtrou. Clique em qualquer caixa para ver endereço e código da caixa."],
-      ["Para voltar", "Use \"Ver todos os corredores\" acima do 3D."]
+      ["Para voltar", "Clique em \"← Sair do corredor\" no canto de cima do 3D."]
     ]
     : [
       ["Cada fileira é um corredor", "A placa em cima mostra o nome (AC01, AC02...) e quantas caixas precisam de reposição."],
@@ -1369,6 +1369,9 @@ function Location3DApp() {
       h("button", { type: "button", className: "wms-3d-fullscreen", onClick: alternarTela, title: tela ? "Sair da tela cheia" : "Ver em tela cheia" }, tela ? "⤢ Sair" : "⛶ Tela cheia")
     ),
     modo === "corredor" ? h("div", { className: "wms-3d-corridor-badge" }, h("small", null, "Você está no"), h("strong", null, resumo.rua)) : null,
+    modo === "corredor"
+      ? h("button", { type: "button", className: "wms-3d-sair-corredor", onClick: () => window.dispatchEvent(new CustomEvent("wms-voltar-geral")) }, "← Sair do corredor")
+      : null,
     h(ComoLer, { modo, aberto: comoLer, onToggle: alternarComoLer }),
     h(WarehouseScene, { data: payload }),
     h(Legend, { modo }),
