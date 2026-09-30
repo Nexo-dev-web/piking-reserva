@@ -22,6 +22,18 @@
     <script src="/location-3d.js" type="module"></script>
   </head>
   <body>
+    <div class="intro" id="intro" aria-hidden="true">
+      <img src="/assets/reserva-logo-branco.png" alt="" width="900" height="137" />
+      <span class="intro-line"></span>
+      <p class="intro-tag">Picking</p>
+    </div>
+    <script>
+      (function () {
+        var intro = document.getElementById("intro");
+        if (matchMedia("(prefers-reduced-motion: reduce)").matches) intro.remove();
+        else setTimeout(function () { intro.remove(); }, 2400);
+      })();
+    </script>
     <section id="setup-screen" class="setup-screen" hidden>
       <div class="setup-card">
         <button id="setup-close" type="button" class="setup-close" aria-label="Fechar">&times;</button>
@@ -29,6 +41,7 @@
         <p class="tag">Picking Automation Radar</p>
         <h1>Configurar leitura</h1>
         <p class="setup-copy">Informe a planilha, o intervalo de leitura e o limite de disponibilidade. Depois o painel abre direto no radar de ruptura.</p>
+        <button type="button" class="link-button" data-open-help>Primeira vez aqui? Veja o passo a passo de como usar</button>
         <form id="setup-form" class="setup-form">
           <label>
             Caminho da planilha
@@ -66,6 +79,116 @@
       </div>
     </section>
 
+    <section id="help-screen" class="help-screen" hidden>
+      <div class="help-card" role="dialog" aria-modal="true" aria-labelledby="help-title">
+        <button id="help-close" type="button" class="setup-close" aria-label="Fechar">&times;</button>
+        <p class="tag">Guia rápido</p>
+        <h1 id="help-title">Como usar o Picking Radar</h1>
+        <p class="setup-copy">O painel lê a planilha <b>WMS_GERAL</b> e mostra quais caixas INK do picking (OD_RJ / E4AC) estão acabando e quanto falta repor em cada uma.</p>
+
+        <nav class="help-index" aria-label="Tópicos">
+          <a href="#ajuda-comecar">Começar</a>
+          <a href="#ajuda-topo">Botões do topo</a>
+          <a href="#ajuda-painel">Painel</a>
+          <a href="#ajuda-produtos">Todos os produtos</a>
+          <a href="#ajuda-local">Localização</a>
+          <a href="#ajuda-endereco">Ler o endereço</a>
+          <a href="#ajuda-problemas">Problemas comuns</a>
+        </nav>
+
+        <section id="ajuda-comecar" class="help-section">
+          <h2>1. Começar (só na primeira vez)</h2>
+          <ol class="help-steps">
+            <li>Abra o site no <b>Chrome</b> ou <b>Edge</b>.</li>
+            <li>Clique em <b>Configurar</b> (no topo) e depois em <b>Selecionar planilha</b>.</li>
+            <li>Na janela do Windows, digite o caminho da pasta na barra de endereço (ex.: <code>\\NOME-DO-PC\pasta</code>), dê Enter e escolha o arquivo <b>WMS_GERAL.xlsm</b>.</li>
+            <li>Preencha os campos:
+              <ul>
+                <li><b>Buscar a cada quantos minutos</b>: de quanto em quanto tempo o painel relê a planilha sozinho (ex.: 5).</li>
+                <li><b>Avisar quando tiver até (peças)</b>: o limite. Caixa com essa quantidade ou menos entra no alerta e na coluna Falta (ex.: 20).</li>
+                <li><b>Peças por caixa</b>: quantas peças cabem numa caixa cheia. Usado no % de ocupação da Localização (ex.: 50).</li>
+              </ul>
+            </li>
+            <li>Clique em <b>Entrar no painel</b>. Pronto: a partir daí ele atualiza sozinho.</li>
+          </ol>
+          <p class="help-note">Nos outros dias, ao abrir o site, o navegador pede para liberar a leitura de novo: é só clicar em <b>Entrar no painel</b>.</p>
+        </section>
+
+        <section id="ajuda-topo" class="help-section">
+          <h2>2. Botões do topo</h2>
+          <dl class="help-list">
+            <dt>Sincronizado / Lendo agora / Erro</dt><dd>Situação da última leitura da planilha.</dd>
+            <dt>Última leitura</dt><dd>Quando o painel leu a planilha pela última vez.</dd>
+            <dt>Arquivo salvo em</dt><dd>Quando a planilha foi salva no Excel. Se essa data for antiga, os números também são: alguém precisa atualizar e salvar a planilha.</dd>
+            <dt>Como usar</dt><dd>Abre este guia.</dd>
+            <dt>Configurar</dt><dd>Troca a planilha, o intervalo, o limite de peças e as peças por caixa.</dd>
+            <dt>Gerar PDF</dt><dd>Monta um relatório pronto para imprimir ou salvar em PDF.</dd>
+            <dt>Ler agora</dt><dd>Relê a planilha na hora, sem esperar o intervalo.</dd>
+          </dl>
+        </section>
+
+        <section id="ajuda-painel" class="help-section">
+          <h2>3. Aba Painel: o que está acabando</h2>
+          <dl class="help-list">
+            <dt>Resumo operacional</dt><dd>Quantos produtos e endereços estão com estoque baixo agora.</dd>
+            <dt>Mapa de calor</dt><dd>Cada quadradinho é um produto (ou endereço, em "Por endereço"). Quanto mais vermelho, mais perto de acabar. Clique para ver o detalhe.</dd>
+            <dt>Cards de risco</dt><dd><span class="help-chip rupture">Ruptura iminente</span> até 2 peças: repor agora. <span class="help-chip critical">Crítico</span> de 3 a 5 peças: acompanhar de perto. <span class="help-chip attention">Atenção</span> acima de 5 até o limite: baixo, mas não é prioridade. Clique num card para filtrar a lista.</dd>
+            <dt>Bater o olho</dt><dd>Os produtos mais perto de acabar, e o endereço, a cor e a grade que mais aparecem entre eles.</dd>
+            <dt>Filtros</dt><dd>Busque por PRODCOR, produto, caixa ou endereço, ou filtre por Rua, Prateleira e Caixa. "Limpar filtro local" volta a mostrar tudo.</dd>
+            <dt>Lista por PRODCOR</dt><dd>Embaixo, cada produto+cor com todas as caixas dele. Clique para abrir e ver caixa por caixa.</dd>
+          </dl>
+        </section>
+
+        <section id="ajuda-produtos" class="help-section">
+          <h2>4. Aba Todos os produtos: quanto repor</h2>
+          <p>Uma tabela com <b>todas</b> as caixas INK do picking, igual a uma planilha de reposição.</p>
+          <dl class="help-list">
+            <dt>Caixas p/ repor</dt><dd>Quantas caixas estão abaixo do limite.</dd>
+            <dt>Total peças faltantes</dt><dd>Soma de tudo que falta repor.</dd>
+            <dt>Disponível</dt><dd>Peças na caixa agora (estoque menos reservado). Pode ficar negativo quando há mais reserva do que estoque; isso vem do WMS.</dd>
+            <dt>Limite</dt><dd>Quanto a caixa deveria ter (o número de "Avisar quando tiver até").</dd>
+            <dt>Falta</dt><dd><b>Limite − Disponível</b>. <span class="falta-exemplo">Vermelho</span> = repor essa quantidade. Zero ou negativo = caixa ok.</dd>
+            <dt>Mostrar / Ordenar</dt><dd>"Só as que precisam repor" esconde as caixas ok. "Maior falta" põe no topo o que precisa de mais peças.</dd>
+            <dt>Exportar Excel</dt><dd>Baixa uma planilha com exatamente o que está na tela (busca e filtro aplicados).</dd>
+          </dl>
+        </section>
+
+        <section id="ajuda-local" class="help-section">
+          <h2>5. Aba Localização: onde fica cada caixa</h2>
+          <dl class="help-list">
+            <dt>Corredor em 3D</dt><dd>Mostra as prateleiras do corredor escolhido. Arraste para girar, use a rodinha do mouse para dar zoom e passe o mouse numa caixa para ver o que tem nela.</dd>
+            <dt>Corredor em foco</dt><dd>Escolhe qual corredor (rua) aparece no 3D.</dd>
+            <dt>Todos os corredores</dt><dd>Quantas caixas críticas cada corredor tem. Clique numa linha para abrir aquele corredor.</dd>
+            <dt>Ranking de caixas</dt><dd>% de ocupação = peças disponíveis ÷ peças por caixa.</dd>
+          </dl>
+        </section>
+
+        <section id="ajuda-endereco" class="help-section">
+          <h2>6. Como ler o endereço</h2>
+          <p class="help-endereco"><code><b>E4</b><i>AC01</i><b>P13</b><i>L3010</i></code></p>
+          <ul>
+            <li><b>E4</b>: galpão / área.</li>
+            <li><b>AC01</b>: rua (corredor).</li>
+            <li><b>P13</b>: prateleira (par ou ímpar indica o lado do corredor).</li>
+            <li><b>L3010</b>: posição na prateleira. Os dois primeiros números são a altura: L10 embaixo, L20 no meio, até L50 na altura da cabeça.</li>
+          </ul>
+        </section>
+
+        <section id="ajuda-problemas" class="help-section">
+          <h2>7. Problemas comuns</h2>
+          <dl class="help-list">
+            <dt>"Precisa da sua permissão para ler…"</dt><dd>Normal ao reabrir o site. Abra <b>Configurar</b> e clique em <b>Entrar no painel</b>.</dd>
+            <dt>Não consigo chegar na pasta da planilha</dt><dd>Aperte <b>Win + R</b>, digite o caminho da pasta e dê Enter. Se não abrir nem assim, é permissão de rede: fale com o responsável pelo computador da planilha.</dd>
+            <dt>Os números não mudam</dt><dd>O painel lê a última versão <b>salva</b>. Confira a data em "Arquivo salvo em" e peça para salvarem a planilha no Excel.</dd>
+            <dt>Não lê sozinho depois de um tempo</dt><dd>Use Chrome ou Edge. Em outros navegadores, selecione a planilha de novo quando ela mudar.</dd>
+            <dt>O computador da planilha desligou</dt><dd>O painel mostra erro até ele voltar. Depois é só clicar em <b>Ler agora</b>.</dd>
+          </dl>
+        </section>
+
+        <button type="button" class="help-ok" data-close-help>Entendi</button>
+      </div>
+    </section>
+
     <main class="page">
       <section id="print-report" class="print-report"></section>
 
@@ -83,6 +206,7 @@
           <small id="file-update">Arquivo: -</small>
         </div>
         <div class="actions">
+          <button id="open-help" type="button" class="secondary help-button">? Como usar</button>
           <button id="open-setup" type="button" class="secondary">Configurar</button>
           <button id="report-pdf" type="button" class="secondary">Gerar PDF</button>
           <button id="refresh-excel" type="button" class="secondary">Atualizar Excel</button>
@@ -265,38 +389,81 @@
           <div class="panel-head">
             <div>
               <p class="tag">Todos os produtos</p>
-              <h2>OD_RJ / E4AC / INK — sem filtro de quantidade</h2>
+              <h2>Reposição do picking — OD_RJ / E4AC / INK</h2>
             </div>
-            <span id="produtos-total" class="pill">-</span>
+            <button id="export-produtos" type="button" class="secondary">Exportar Excel</button>
           </div>
+
+          <div class="repor-cards">
+            <div class="repor-card destaque">
+              <span>Caixas p/ repor</span>
+              <strong id="repor-caixas">-</strong>
+              <small>caixas abaixo do limite</small>
+            </div>
+            <div class="repor-card destaque">
+              <span>Total peças faltantes</span>
+              <strong id="repor-pecas">-</strong>
+              <small>soma da coluna Falta</small>
+            </div>
+            <div class="repor-card">
+              <span>Limite</span>
+              <strong id="repor-limite">-</strong>
+              <small>peças por caixa · muda em Configurar</small>
+            </div>
+            <div class="repor-card">
+              <span>Caixas no picking</span>
+              <strong id="repor-total">-</strong>
+              <small>todas as caixas INK do E4AC</small>
+            </div>
+          </div>
+
+          <details class="repor-explica">
+            <summary>Como ler esta tabela</summary>
+            <ul>
+              <li>Cada linha é uma <b>caixa</b> do picking (endereço + caixa + produto).</li>
+              <li><b>Disponível</b>: peças que tem na caixa agora (estoque menos reservado).</li>
+              <li><b>Limite</b>: quantidade que a caixa deveria ter. É o número de "Avisar quando tiver até", em Configurar.</li>
+              <li><b>Falta</b> = Limite − Disponível. <span class="falta-exemplo">Vermelho</span> = caixa abaixo do limite: repor essa quantidade. Zero ou negativo = caixa ok.</li>
+              <li>A tabela se atualiza sozinha no intervalo configurado. "Exportar Excel" baixa exatamente o que está na tela (com a busca e o filtro aplicados).</li>
+            </ul>
+          </details>
+
           <div class="filters produtos-filters">
             <label>
-              Buscar produto
-              <input id="search-produtos" type="search" placeholder="PRODCOR, descrição, cor, tamanho, grade..." />
+              Buscar
+              <input id="search-produtos" type="search" placeholder="Endereço, caixa, PRODCOR, descrição, cor, tamanho..." />
+            </label>
+            <label>
+              Mostrar
+              <select id="filtro-falta-produtos">
+                <option value="todas">Todas as caixas</option>
+                <option value="faltando">Só as que precisam repor</option>
+              </select>
             </label>
             <label>
               Ordenar
               <select id="sort-produtos">
+                <option value="falta">Maior falta</option>
                 <option value="menor">Menor disponível</option>
-                <option value="prodcor">PRODCOR</option>
                 <option value="endereco">Endereço</option>
+                <option value="prodcor">PRODCOR</option>
               </select>
             </label>
+            <span id="produtos-total" class="pill">-</span>
           </div>
-          <div class="table-wrap">
-            <table>
+          <div class="table-wrap produtos-wrap">
+            <table class="tabela-repor">
               <thead>
                 <tr>
-                  <th>PRODCOR</th>
-                  <th>Descrição</th>
-                  <th>Cor</th>
                   <th>Endereço</th>
                   <th>Caixa</th>
-                  <th>Tamanho</th>
-                  <th>Grade</th>
-                  <th>Estoque</th>
-                  <th>Reservada</th>
+                  <th>PRODCOR</th>
                   <th>Disponível</th>
+                  <th>Limite</th>
+                  <th>Falta</th>
+                  <th class="col-extra">Descrição</th>
+                  <th class="col-extra">Cor</th>
+                  <th class="col-extra">Tam.</th>
                 </tr>
               </thead>
               <tbody id="produtos-tbody"></tbody>

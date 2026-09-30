@@ -14,7 +14,8 @@ const state = {
   todosProdutos: [],
   todosCarregado: false,
   buscaProdutos: "",
-  ordemProdutos: "menor",
+  ordemProdutos: "falta",
+  filtroFalta: "todas",
   localizacao: {
     rua: "",
     prateleira: "",
@@ -88,6 +89,12 @@ const el = {
   produtosTbody: $("#produtos-tbody"),
   searchProdutos: $("#search-produtos"),
   sortProdutos: $("#sort-produtos"),
+  filtroFaltaProdutos: $("#filtro-falta-produtos"),
+  exportProdutos: $("#export-produtos"),
+  reporCaixas: $("#repor-caixas"),
+  reporPecas: $("#repor-pecas"),
+  reporLimite: $("#repor-limite"),
+  reporTotal: $("#repor-total"),
   localRua: $("#local-rua"),
   localPrateleira: $("#local-prateleira"),
   localCaixa: $("#local-caixa"),
@@ -120,6 +127,11 @@ function tempoRelativo(iso) {
   const diffMin = Math.round(diffS / 60);
   if (diffMin < 60) return `${diffMin} min`;
   return `${Math.round(diffMin / 60)} h`;
+}
+
+const formatoNumero = new Intl.NumberFormat("pt-BR");
+function fmtNum(valor) {
+  return formatoNumero.format(Number(valor) || 0);
 }
 
 function fmtData(iso) {
@@ -529,15 +541,26 @@ function textoBuscaItem(item) {
     .toUpperCase();
 }
 
+function limiteAtual() {
+  return Math.max(0, Number(state.config?.limiteDisponivel) || 10);
+}
+
+function comFalta(item, limite) {
+  return { ...item, limite, falta: limite - item.quantidadeDisponivel };
+}
+
 function itensTodosFiltrados() {
+  const limite = limiteAtual();
   const termo = state.buscaProdutos.trim().toUpperCase();
-  const base = termo ? state.todosProdutos.filter(item => textoBuscaItem(item).includes(termo)) : [...state.todosProdutos];
+  let base = state.todosProdutos.map(item => comFalta(item, limite));
+  if (termo) base = base.filter(item => textoBuscaItem(item).includes(termo));
+  if (state.filtroFalta === "faltando") base = base.filter(item => item.falta > 0);
+  const porTexto = (x, y) => x.localeCompare(y, "pt-BR", { numeric: true });
   return base.sort((a, b) => {
-    if (state.ordemProdutos === "prodcor") {
-      return a.prodcor.localeCompare(b.prodcor, "pt-BR", { numeric: true }) || a.endereco.localeCompare(b.endereco, "pt-BR", { numeric: true });
-    }
-    if (state.ordemProdutos === "endereco") return a.endereco.localeCompare(b.endereco, "pt-BR", { numeric: true });
-    return a.quantidadeDisponivel - b.quantidadeDisponivel || a.prodcor.localeCompare(b.prodcor, "pt-BR", { numeric: true });
+    if (state.ordemProdutos === "prodcor") return porTexto(a.prodcor, b.prodcor) || porTexto(a.endereco, b.endereco);
+    if (state.ordemProdutos === "endereco") return porTexto(a.endereco, b.endereco);
+    if (state.ordemProdutos === "menor") return a.quantidadeDisponivel - b.quantidadeDisponivel || porTexto(a.endereco, b.endereco);
+    return b.falta - a.falta || porTexto(a.endereco, b.endereco);
   });
 }
 
@@ -552,30 +575,59 @@ async function carregarTodosProdutos() {
     renderTabelaProdutos();
   } catch (erro) {
     el.produtosTotal.textContent = "Erro";
-    el.produtosTbody.innerHTML = `<tr><td colspan="10">${esc(erro.message)}</td></tr>`;
+    el.produtosTbody.innerHTML = `<tr><td colspan="9">${esc(erro.message)}</td></tr>`;
   }
 }
 
 function renderTabelaProdutos() {
+  const limite = limiteAtual();
+  const faltando = state.todosProdutos.map(item => comFalta(item, limite)).filter(item => item.falta > 0);
+  el.reporCaixas.textContent = fmtNum(faltando.length);
+  el.reporPecas.textContent = fmtNum(faltando.reduce((soma, item) => soma + item.falta, 0));
+  el.reporLimite.textContent = fmtNum(limite);
+  el.reporTotal.textContent = fmtNum(state.todosProdutos.length);
+
   const itens = itensTodosFiltrados();
-  el.produtosTotal.textContent = `${itens.length} linha${itens.length === 1 ? "" : "s"}`;
-  el.produtosTbody.innerHTML = itens.map(item => {
-    const nivel = nivelQtd(item.quantidadeDisponivel);
-    return `
-      <tr class="linha-produto ${nivel}" data-prodcor-link="${esc(item.prodcor)}">
-        <td class="strong">${esc(item.prodcor)}</td>
-        <td>${esc(item.descProduto)}</td>
-        <td>${esc(item.cor)}</td>
-        <td class="addr-cell">${renderEnderecoDetalhado(item.endereco)}</td>
-        <td class="box-cell"><span class="addr-raw">${esc(item.caixa)}</span><span class="addr-meta">caixa da peça</span></td>
-        <td class="strong">${esc(item.tamanho)}</td>
-        <td class="strong">${esc(item.grade)}</td>
-        <td class="num">${esc(item.quantidadeEstoque)}</td>
-        <td class="num">${esc(item.quantidadeReservada)}</td>
-        <td class="num danger">${esc(item.quantidadeDisponivel)}</td>
+  el.produtosTotal.textContent = `${fmtNum(itens.length)} linha${itens.length === 1 ? "" : "s"}`;
+  if (!itens.length) {
+    el.produtosTbody.innerHTML = `<tr><td colspan="9">Nenhuma caixa encontrada com esse filtro.</td></tr>`;
+    return;
+  }
+  el.produtosTbody.innerHTML = itens.map(item => `
+      <tr class="linha-produto" data-prodcor-link="${esc(item.prodcor)}">
+        <td class="txt-cell">${esc(item.endereco)}</td>
+        <td class="txt-cell">${esc(item.caixa)}</td>
+        <td class="txt-cell">${esc(item.prodcor)}</td>
+        <td class="num">${fmtNum(item.quantidadeDisponivel)}</td>
+        <td class="num">${fmtNum(item.limite)}</td>
+        <td class="num falta-cell ${item.falta > 0 ? "faltando" : "ok"}">${fmtNum(item.falta)}</td>
+        <td class="col-extra desc-cell">${esc(item.descProduto)}</td>
+        <td class="col-extra">${esc(item.cor)}</td>
+        <td class="col-extra">${esc(item.grade || item.tamanho)}</td>
       </tr>
-    `;
-  }).join("");
+    `).join("");
+}
+
+function exportarProdutosExcel() {
+  const linhas = itensTodosFiltrados().map(item => ({
+    "ENDEREÇO": item.endereco,
+    "CAIXA": item.caixa,
+    "PRODCOR": item.prodcor,
+    "DISPONÍVEL": item.quantidadeDisponivel,
+    "LIMITE": item.limite,
+    "FALTA": item.falta,
+    "DESCRIÇÃO": item.descProduto,
+    "COR": item.cor,
+    "TAMANHO": item.grade || item.tamanho,
+    "ESTOQUE": item.quantidadeEstoque,
+    "RESERVADA": item.quantidadeReservada
+  }));
+  const planilha = window.XLSX.utils.json_to_sheet(linhas);
+  planilha["!cols"] = [16, 13, 13, 11, 8, 8, 36, 6, 9, 9, 10].map(wch => ({ wch }));
+  planilha["!autofilter"] = { ref: planilha["!ref"] };
+  const livro = window.XLSX.utils.book_new();
+  window.XLSX.utils.book_append_sheet(livro, planilha, "Reposicao");
+  window.XLSX.writeFile(livro, `reposicao-picking-${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
 
 function trocarVisao(aba) {
@@ -1298,8 +1350,24 @@ function limparFiltrosFinosDeLocalizacao() {
 
 el.openSetup.addEventListener("click", () => { el.setupScreen.hidden = false; });
 $("#setup-close").addEventListener("click", () => { el.setupScreen.hidden = true; });
+const helpScreen = $("#help-screen");
+function abrirAjuda() {
+  helpScreen.hidden = false;
+  helpScreen.querySelector(".help-card").scrollTop = 0;
+}
+$("#open-help").addEventListener("click", abrirAjuda);
+document.querySelectorAll("[data-open-help]").forEach(botao => botao.addEventListener("click", abrirAjuda));
+$("#help-close").addEventListener("click", () => { helpScreen.hidden = true; });
+document.querySelectorAll("[data-close-help]").forEach(botao => botao.addEventListener("click", () => { helpScreen.hidden = true; }));
+helpScreen.addEventListener("click", event => { if (event.target === helpScreen) helpScreen.hidden = true; });
+helpScreen.querySelectorAll(".help-index a").forEach(link => link.addEventListener("click", event => {
+  event.preventDefault();
+  helpScreen.querySelector(link.getAttribute("href"))?.scrollIntoView({ behavior: "smooth", block: "start" });
+}));
 document.addEventListener("keydown", event => {
-  if (event.key === "Escape" && !el.setupScreen.hidden) el.setupScreen.hidden = true;
+  if (event.key !== "Escape") return;
+  if (!helpScreen.hidden) helpScreen.hidden = true;
+  else if (!el.setupScreen.hidden) el.setupScreen.hidden = true;
 });
 for (const botao of document.querySelectorAll(".browse-planilha")) {
   botao.addEventListener("click", async () => {
@@ -1342,6 +1410,8 @@ el.search.addEventListener("input", event => { state.busca = event.target.value;
 el.sort.addEventListener("change", event => { state.ordem = event.target.value; renderGroups(); });
 el.searchProdutos.addEventListener("input", event => { state.buscaProdutos = event.target.value; renderTabelaProdutos(); });
 el.sortProdutos.addEventListener("change", event => { state.ordemProdutos = event.target.value; renderTabelaProdutos(); });
+el.filtroFaltaProdutos.addEventListener("change", event => { state.filtroFalta = event.target.value; renderTabelaProdutos(); });
+el.exportProdutos.addEventListener("click", exportarProdutosExcel);
 el.localRua.addEventListener("input", event => { state.localizacao.rua = event.target.value; render(state.ultimoDados); });
 el.localPrateleira.addEventListener("input", event => { state.localizacao.prateleira = event.target.value; render(state.ultimoDados); });
 el.localCaixa.addEventListener("input", event => { state.localizacao.caixa = event.target.value; render(state.ultimoDados); });
