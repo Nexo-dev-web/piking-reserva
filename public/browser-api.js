@@ -79,6 +79,7 @@ function lerConfig() {
     intervaloMinutos: 1,
     limiteDisponivel: 10,
     capacidadeCaixa: 50,
+    capacidadePorTipo: "",
     ...salvo,
     atualizarExcelAntesDeLer: false,
     planilhaPath: nomeArquivo()
@@ -90,7 +91,8 @@ function salvarConfig(corpo) {
   const config = {
     intervaloMinutos: Math.max(1, Math.min(1440, Number(corpo.intervaloMinutos) || 1)),
     limiteDisponivel: Math.max(0, Math.min(999999, Number(corpo.limiteDisponivel) || 10)),
-    capacidadeCaixa: Math.max(1, Math.min(9999, Number(corpo.capacidadeCaixa) || 50))
+    capacidadeCaixa: Math.max(1, Math.min(9999, Number(corpo.capacidadeCaixa) || 50)),
+    capacidadePorTipo: String(corpo.capacidadePorTipo ?? "").slice(0, 4000)
   };
   try { localStorage.setItem(CHAVE_CONFIG, JSON.stringify(config)); } catch {}
   return lerConfig();

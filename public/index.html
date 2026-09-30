@@ -68,6 +68,11 @@
               <small class="field-hint">Quantas peças cabem numa caixa cheia. Usado no % de ocupação da visão 3D.</small>
             </label>
           </div>
+          <label>
+            Peças por caixa por tipo de produto
+            <textarea id="setup-capacidade-por-tipo" rows="3" placeholder="MOLETOM = 15&#10;BONE = 30"></textarea>
+            <small class="field-hint">Uma regra por linha: palavra da descrição = peças. Ex.: MOLETOM = 15. O que não bater usa "Peças por caixa".</small>
+          </label>
           <label class="check">
             <input id="setup-atualizar-excel-antes" type="checkbox" />
             <span>Abrir Excel, atualizar conexões, salvar e fechar antes de ler</span>
@@ -84,13 +89,13 @@
         <button id="help-close" type="button" class="setup-close" aria-label="Fechar">&times;</button>
         <p class="tag">Guia rápido</p>
         <h1 id="help-title">Como usar o Picking Radar</h1>
-        <p class="setup-copy">O painel lê a planilha <b>WMS_GERAL</b> e mostra quais caixas INK do picking (OD_RJ / E4AC) estão acabando e quanto falta repor em cada uma.</p>
+        <p class="setup-copy">O painel lê a planilha <b>WMS_GERAL</b> e mostra quais caixas do picking (OD_RJ / E4AC) estão acabando e quanto falta repor em cada uma.</p>
 
         <nav class="help-index" aria-label="Tópicos">
           <a href="#ajuda-comecar">Começar</a>
           <a href="#ajuda-topo">Botões do topo</a>
           <a href="#ajuda-painel">Painel</a>
-          <a href="#ajuda-produtos">Todos os produtos</a>
+          <a href="#ajuda-produtos">Reposição</a>
           <a href="#ajuda-local">Localização</a>
           <a href="#ajuda-endereco">Ler o endereço</a>
           <a href="#ajuda-problemas">Problemas comuns</a>
@@ -140,15 +145,15 @@
         </section>
 
         <section id="ajuda-produtos" class="help-section">
-          <h2>4. Aba Todos os produtos: quanto repor</h2>
-          <p>Uma tabela com <b>todas</b> as caixas INK do picking, igual a uma planilha de reposição.</p>
+          <h2>4. Aba Reposição: quanto repor</h2>
+          <p>Uma tabela com <b>todas</b> as caixas do picking (todos os produtos), igual a uma planilha de reposição.</p>
           <dl class="help-list">
             <dt>Caixas p/ repor</dt><dd>Quantas caixas estão abaixo do limite.</dd>
             <dt>Total peças faltantes</dt><dd>Soma de tudo que falta repor.</dd>
             <dt>Disponível</dt><dd>Peças na caixa agora (estoque menos reservado). Pode ficar negativo quando há mais reserva do que estoque; isso vem do WMS.</dd>
             <dt>Limite</dt><dd>Quanto a caixa deveria ter (o número de "Avisar quando tiver até").</dd>
-            <dt>Falta</dt><dd><b>Limite − Disponível</b>. <span class="falta-exemplo">Vermelho</span> = repor essa quantidade. Zero ou negativo = caixa ok.</dd>
-            <dt>Mostrar / Ordenar</dt><dd>"Só as que precisam repor" esconde as caixas ok. "Maior falta" põe no topo o que precisa de mais peças.</dd>
+            <dt>Saldo</dt><dd><b>Disponível − Limite</b>. Número positivo = caixa acima do limite, ok. <span class="falta-exemplo">-7</span> em vermelho = faltam 7 peças para chegar no limite.</dd>
+            <dt>Mostrar / Ordenar</dt><dd>"Só as que precisam repor" esconde as caixas ok. "Maior falta" põe no topo o saldo mais negativo.</dd>
             <dt>Exportar Excel</dt><dd>Baixa uma planilha com exatamente o que está na tela (busca e filtro aplicados).</dd>
           </dl>
         </section>
@@ -235,6 +240,11 @@
             Peças por caixa
             <input id="capacidade-caixa" name="capacidadeCaixa" type="number" min="1" max="9999" step="1" />
           </label>
+          <label class="capacidade-tipo">
+            Peças por caixa por tipo
+            <textarea id="capacidade-por-tipo" name="capacidadePorTipo" rows="3" placeholder="MOLETOM = 15&#10;BONE = 30"></textarea>
+            <small class="field-hint">Uma regra por linha: palavra da descrição = peças. Ex.: MOLETOM = 15. O que não bater usa "Peças por caixa".</small>
+          </label>
           <label class="check">
             <input id="atualizar-excel-antes" name="atualizarExcelAntesDeLer" type="checkbox" />
             <span>Atualizar Excel antes de ler</span>
@@ -247,26 +257,58 @@
       <div class="layout">
         <nav class="sidebar" aria-label="Visualização">
           <button id="tab-painel" class="side-tab active" type="button" data-tab="painel">Painel</button>
-          <button id="tab-produtos" class="side-tab" type="button" data-tab="produtos">Todos os produtos</button>
+          <button id="tab-produtos" class="side-tab" type="button" data-tab="produtos">Reposição</button>
           <button id="tab-localizacao" class="side-tab" type="button" data-tab="localizacao">Localização</button>
         </nav>
 
         <div class="content">
       <div id="view-painel">
-      <section class="hero">
+      <section class="hero hero-simples">
         <div class="hero-main">
-          <p class="tag">Resumo operacional - RJ E4AC / INK</p>
-          <h1 id="hero-title">- peças acabando</h1>
-          <div id="hero-prioridade" class="hero-prioridade"></div>
+          <p class="tag">Resumo do picking · OD_RJ / E4AC / todos os produtos</p>
+          <h1 id="hero-title">- produtos acabando</h1>
           <div id="hero-briefing" class="hero-briefing"></div>
-        </div>
-        <div class="hero-gauge" aria-label="Distribuicao de risco">
-          <div class="gauge-number" id="gauge-number">-</div>
-          <div class="gauge-label">PRODCOR em ruptura iminente</div>
-          <div id="risk-stack" class="risk-stack"></div>
+          <div id="risk-stack" class="risk-stack" aria-hidden="true"></div>
+          <div class="signal-grid" aria-label="Filtrar por urgência">
+            <button class="signal rupture active" type="button" data-risk-filter="rupture">
+              <span>Repor agora</span>
+              <strong id="m-ruptura">-</strong>
+              <small id="m-ruptura-desc">precisa agir agora</small>
+            </button>
+            <button class="signal critical" type="button" data-risk-filter="critical">
+              <span>Crítico</span>
+              <strong id="m-critico">-</strong>
+              <small id="m-critico-desc">acompanhar de perto</small>
+            </button>
+            <button class="signal attention" type="button" data-risk-filter="attention">
+              <span>Atenção</span>
+              <strong id="m-atencao">-</strong>
+              <small id="m-atencao-desc">baixo, mas não é prioridade</small>
+            </button>
+            <button class="signal neutral" type="button" data-risk-filter="all">
+              <span>Todos</span>
+              <strong id="m-itens">-</strong>
+              <small id="m-total">- linhas lidas</small>
+            </button>
+          </div>
         </div>
       </section>
 
+      <section id="hero-prioridade" class="hero-prioridade"></section>
+
+      <article class="panel hotlist-panel">
+        <div class="panel-head">
+          <div>
+            <p class="tag">Fila de reposição</p>
+            <h2>Vá nesta ordem: do que tem menos peças para o que tem mais</h2>
+          </div>
+          <span id="filter-summary" class="pill">OD_RJ / E4AC / todos os produtos / abaixo de 10</span>
+        </div>
+        <div id="hotlist" class="hotlist"></div>
+      </article>
+
+      <details class="painel-mais">
+        <summary>Mais análises: mapa de calor, endereços, cores e grades</summary>
         <section class="panel heatmap-panel">
           <div class="panel-head">
             <div>
@@ -284,42 +326,8 @@
           <div id="heatmap-enderecos" class="heatmap-enderecos" hidden></div>
         </section>
 
-      <section class="signal-grid" aria-label="Atalhos por risco">
-        <button class="signal rupture" type="button" data-risk-filter="rupture">
-          <span>Ruptura iminente</span>
-          <strong id="m-ruptura">-</strong>
-          <small id="m-ruptura-desc">precisa agir agora</small>
-        </button>
-        <button class="signal critical" type="button" data-risk-filter="critical">
-          <span>Crítico</span>
-          <strong id="m-critico">-</strong>
-          <small id="m-critico-desc">acompanhar de perto</small>
-        </button>
-        <button class="signal attention" type="button" data-risk-filter="attention">
-          <span>Atenção</span>
-          <strong id="m-atencao">-</strong>
-          <small id="m-atencao-desc">baixo, mas não é prioridade</small>
-        </button>
-        <button class="signal neutral" type="button" data-risk-filter="all">
-          <span>Ocorrências no filtro</span>
-          <strong id="m-itens">-</strong>
-          <small id="m-total">- linhas lidas</small>
-        </button>
-      </section>
-
-      <section class="focus-layout">
-        <article class="panel hotlist-panel">
-          <div class="panel-head">
-            <div>
-              <p class="tag">Bater o olho</p>
-              <h2>O que esta mais perto de acabar</h2>
-            </div>
-            <span id="filter-summary" class="pill">OD_RJ / E4AC / INK / abaixo de 10</span>
-          </div>
-          <div id="hotlist" class="hotlist"></div>
-        </article>
-
-        <aside class="side-panels">
+        <section class="painel-graficos">
+          <div class="side-panels">
           <article class="panel">
             <div class="panel-head compact">
               <div>
@@ -349,9 +357,11 @@
             </div>
             <div id="grade-chart" class="bar-chart"></div>
           </article>
-        </aside>
-      </section>
+          </div>
+        </section>
+      </details>
 
+      <h2 class="painel-detalhe-titulo">Detalhe por produto</h2>
       <section class="filters">
         <label>
           Buscar detalhe
@@ -388,8 +398,8 @@
         <section class="panel">
           <div class="panel-head">
             <div>
-              <p class="tag">Todos os produtos</p>
-              <h2>Reposição do picking — OD_RJ / E4AC / INK</h2>
+              <p class="tag">Reposição</p>
+              <h2>Reposição do picking — OD_RJ / E4AC / todos os produtos</h2>
             </div>
             <button id="export-produtos" type="button" class="secondary">Exportar Excel</button>
           </div>
@@ -403,7 +413,7 @@
             <div class="repor-card destaque">
               <span>Total peças faltantes</span>
               <strong id="repor-pecas">-</strong>
-              <small>soma da coluna Falta</small>
+              <small>soma dos saldos negativos</small>
             </div>
             <div class="repor-card">
               <span>Limite</span>
@@ -413,7 +423,7 @@
             <div class="repor-card">
               <span>Caixas no picking</span>
               <strong id="repor-total">-</strong>
-              <small>todas as caixas INK do E4AC</small>
+              <small>todas as caixas do E4AC</small>
             </div>
           </div>
 
@@ -423,7 +433,7 @@
               <li>Cada linha é uma <b>caixa</b> do picking (endereço + caixa + produto).</li>
               <li><b>Disponível</b>: peças que tem na caixa agora (estoque menos reservado).</li>
               <li><b>Limite</b>: quantidade que a caixa deveria ter. É o número de "Avisar quando tiver até", em Configurar.</li>
-              <li><b>Falta</b> = Limite − Disponível. <span class="falta-exemplo">Vermelho</span> = caixa abaixo do limite: repor essa quantidade. Zero ou negativo = caixa ok.</li>
+              <li><b>Saldo</b> = Disponível − Limite. Positivo, sem sinal = caixa acima do limite. <span class="falta-exemplo">-7</span> em vermelho = caixa abaixo do limite, faltam 7 peças.</li>
               <li>A tabela se atualiza sozinha no intervalo configurado. "Exportar Excel" baixa exatamente o que está na tela (com a busca e o filtro aplicados).</li>
             </ul>
           </details>
@@ -460,7 +470,7 @@
                   <th>PRODCOR</th>
                   <th>Disponível</th>
                   <th>Limite</th>
-                  <th>Falta</th>
+                  <th>Saldo</th>
                   <th class="col-extra">Descrição</th>
                   <th class="col-extra">Cor</th>
                   <th class="col-extra">Tam.</th>

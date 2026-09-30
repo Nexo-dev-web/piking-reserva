@@ -37,6 +37,7 @@ const el = {
   setupIntervalo: $("#setup-intervalo-minutos"),
   setupLimite: $("#setup-limite-disponivel"),
   setupCapacidadeCaixa: $("#setup-capacidade-caixa"),
+  setupCapacidadePorTipo: $("#setup-capacidade-por-tipo"),
   setupExcel: $("#setup-atualizar-excel-antes"),
   openSetup: $("#open-setup"),
   reportPdf: $("#report-pdf"),
@@ -49,7 +50,6 @@ const el = {
   heroTitle: $("#hero-title"),
   heroPrioridade: $("#hero-prioridade"),
   heroBriefing: $("#hero-briefing"),
-  gaugeNumber: $("#gauge-number"),
   riskStack: $("#risk-stack"),
   ruptura: $("#m-ruptura"),
   rupturaDesc: $("#m-ruptura-desc"),
@@ -74,6 +74,7 @@ const el = {
   intervaloMinutos: $("#intervalo-minutos"),
   limiteDisponivel: $("#limite-disponivel"),
   capacidadeCaixa: $("#capacidade-caixa"),
+  capacidadePorTipo: $("#capacidade-por-tipo"),
   atualizarExcelAntes: $("#atualizar-excel-antes"),
   search: $("#search"),
   sort: $("#sort"),
@@ -419,24 +420,33 @@ function trocarModoHeatmap(modo) {
 
 function renderHotlist() {
   const base = gruposFiltrados();
-  const top = gruposPrioridade(base).filter(grupo => riscoGrupo(grupo).nivel === "rupture").slice(0, 10);
-  const fallback = top.length ? top : gruposPrioridade(base).slice(0, 8);
-  el.hotlist.innerHTML = fallback.map((grupo, index) => {
-    const risco = riscoGrupo(grupo);
-    const enderecosQtd = enderecosComQtd(grupo);
-    return `
-      <button class="hot-item ${risco.nivel}" type="button" data-prodcor-link="${esc(grupo.prodcor)}">
-        <span class="hot-index">${index + 1}</span>
-        <span class="hot-main">
-          <span class="hot-line"><strong>${esc(grupo.prodcor)}</strong><em>${esc(risco.label)}</em></span>
-          <span class="hot-desc">${esc(grupo.descProduto)}</span>
-          <span class="addr-chips hot-chips">${renderAddrChips(enderecosQtd)}</span>
-          <span class="hot-meta">Tam ${esc((grupo.tamanhos || []).join(", ") || "-")} · Grade ${esc((grupo.grades || []).join(", ") || "-")}</span>
-        </span>
-        <span class="hot-number"><b>${esc(grupo.menorDisponivel)}</b><small>disp. mínima</small></span>
-      </button>
-    `;
-  }).join("");
+  const top = gruposPrioridade(base).slice(0, 12);
+  if (!top.length) {
+    el.hotlist.innerHTML = `<div class="empty-chart">Nenhum produto nesta faixa.</div>`;
+    return;
+  }
+  el.hotlist.innerHTML = `
+    <div class="fila-head"><span>#</span><span>Produto</span><span>Onde ir</span><span>Sobram</span></div>
+    ${top.map((grupo, index) => {
+      const risco = riscoGrupo(grupo);
+      const pior = enderecosComQtd(grupo)[0];
+      const piorItem = pior ? grupo.itens.find(item => item.endereco === pior.endereco) : null;
+      const info = pior ? parseEndereco(pior.endereco) : { valido: false };
+      const outros = (grupo.enderecos || []).length - (pior ? 1 : 0);
+      const qtd = grupo.menorDisponivel;
+      return `
+        <button class="fila-item ${risco.nivel}" type="button" data-prodcor-link="${esc(grupo.prodcor)}">
+          <span class="fila-pos">${index + 1}</span>
+          <span class="fila-produto"><strong>${esc(grupo.descProduto)}</strong><small>${esc(grupo.prodcor)}</small></span>
+          <span class="fila-local">
+            ${pior ? `<strong>${PIN_SVG}${info.valido ? `Rua ${esc(info.rua)} · Prateleira ${esc(info.prateleira)}` : esc(pior.endereco)}</strong>
+            <small>${esc(pior.endereco)}${piorItem?.caixa ? ` · Caixa ${esc(piorItem.caixa)}` : ""}${outros > 0 ? ` · +${outros} endereço${outros === 1 ? "" : "s"}` : ""}</small>` : `<small>Sem endereço</small>`}
+          </span>
+          <span class="fila-qtd"><b>${esc(qtd)}</b><small>${qtd < 0 ? "faltando" : qtd === 1 ? "peça" : "peças"}</small></span>
+        </button>
+      `;
+    }).join("")}
+  `;
 }
 
 function renderBars(container, dados) {
@@ -545,22 +555,27 @@ function limiteAtual() {
   return Math.max(0, Number(state.config?.limiteDisponivel) || 10);
 }
 
-function comFalta(item, limite) {
-  return { ...item, limite, falta: limite - item.quantidadeDisponivel };
+// Saldo = Disponível − Limite: positivo = caixa acima do limite, negativo = peças que faltam repor.
+function comSaldo(item, limite) {
+  return { ...item, limite, saldo: item.quantidadeDisponivel - limite };
+}
+
+function fmtSaldo(saldo) {
+  return saldo < 0 ? `-${fmtNum(Math.abs(saldo))}` : fmtNum(saldo);
 }
 
 function itensTodosFiltrados() {
   const limite = limiteAtual();
   const termo = state.buscaProdutos.trim().toUpperCase();
-  let base = state.todosProdutos.map(item => comFalta(item, limite));
+  let base = state.todosProdutos.map(item => comSaldo(item, limite));
   if (termo) base = base.filter(item => textoBuscaItem(item).includes(termo));
-  if (state.filtroFalta === "faltando") base = base.filter(item => item.falta > 0);
+  if (state.filtroFalta === "faltando") base = base.filter(item => item.saldo < 0);
   const porTexto = (x, y) => x.localeCompare(y, "pt-BR", { numeric: true });
   return base.sort((a, b) => {
     if (state.ordemProdutos === "prodcor") return porTexto(a.prodcor, b.prodcor) || porTexto(a.endereco, b.endereco);
     if (state.ordemProdutos === "endereco") return porTexto(a.endereco, b.endereco);
     if (state.ordemProdutos === "menor") return a.quantidadeDisponivel - b.quantidadeDisponivel || porTexto(a.endereco, b.endereco);
-    return b.falta - a.falta || porTexto(a.endereco, b.endereco);
+    return a.saldo - b.saldo || porTexto(a.endereco, b.endereco);
   });
 }
 
@@ -569,7 +584,7 @@ async function carregarTodosProdutos() {
   try {
     const resposta = await api("/api/wms/todos-produtos", { cache: "no-store" });
     const dados = await lerJson(resposta);
-    if (!resposta.ok) throw new Error(dados.erro || "Falha ao carregar todos os produtos.");
+    if (!resposta.ok) throw new Error(dados.erro || "Falha ao carregar a reposição.");
     state.todosProdutos = (dados.resumo || []).flatMap(grupo => grupo.itens);
     state.todosCarregado = true;
     renderTabelaProdutos();
@@ -581,9 +596,9 @@ async function carregarTodosProdutos() {
 
 function renderTabelaProdutos() {
   const limite = limiteAtual();
-  const faltando = state.todosProdutos.map(item => comFalta(item, limite)).filter(item => item.falta > 0);
+  const faltando = state.todosProdutos.map(item => comSaldo(item, limite)).filter(item => item.saldo < 0);
   el.reporCaixas.textContent = fmtNum(faltando.length);
-  el.reporPecas.textContent = fmtNum(faltando.reduce((soma, item) => soma + item.falta, 0));
+  el.reporPecas.textContent = fmtNum(faltando.reduce((soma, item) => soma - item.saldo, 0));
   el.reporLimite.textContent = fmtNum(limite);
   el.reporTotal.textContent = fmtNum(state.todosProdutos.length);
 
@@ -594,13 +609,13 @@ function renderTabelaProdutos() {
     return;
   }
   el.produtosTbody.innerHTML = itens.map(item => `
-      <tr class="linha-produto" data-prodcor-link="${esc(item.prodcor)}">
+      <tr class="linha-produto${item.saldo < 0 ? " linha-faltando" : ""}" data-prodcor-link="${esc(item.prodcor)}">
         <td class="txt-cell">${esc(item.endereco)}</td>
         <td class="txt-cell">${esc(item.caixa)}</td>
         <td class="txt-cell">${esc(item.prodcor)}</td>
         <td class="num">${fmtNum(item.quantidadeDisponivel)}</td>
         <td class="num">${fmtNum(item.limite)}</td>
-        <td class="num falta-cell ${item.falta > 0 ? "faltando" : "ok"}">${fmtNum(item.falta)}</td>
+        <td class="num falta-cell ${item.saldo < 0 ? "faltando" : "ok"}">${fmtSaldo(item.saldo)}</td>
         <td class="col-extra desc-cell">${esc(item.descProduto)}</td>
         <td class="col-extra">${esc(item.cor)}</td>
         <td class="col-extra">${esc(item.grade || item.tamanho)}</td>
@@ -615,7 +630,7 @@ function exportarProdutosExcel() {
     "PRODCOR": item.prodcor,
     "DISPONÍVEL": item.quantidadeDisponivel,
     "LIMITE": item.limite,
-    "FALTA": item.falta,
+    "SALDO": item.saldo,
     "DESCRIÇÃO": item.descProduto,
     "COR": item.cor,
     "TAMANHO": item.grade || item.tamanho,
@@ -709,22 +724,41 @@ function capacidadeCaixaAtual() {
   return Math.max(1, Number(state.config?.capacidadeCaixa) || 50);
 }
 
-function calcularOcupacaoPrateleiras(itens, capacidadeCaixa) {
+// Regras "PALAVRA = peças", uma por linha. A palavra é procurada na descrição da peça (ex.: MOLETOM, BONE).
+function regrasCapacidade() {
+  return String(state.config?.capacidadePorTipo || "")
+    .split(/\r?\n/)
+    .map(linha => /^\s*(.+?)\s*[=:]\s*(\d+)\s*$/.exec(linha))
+    .filter(Boolean)
+    .map(([, palavra, pecas]) => ({ palavra: semAcento(palavra), pecas: Math.max(1, Number(pecas)) }));
+}
+
+function semAcento(valor) {
+  return txt(valor).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+}
+
+function capacidadeDoItem(item, regras = regrasCapacidade()) {
+  const descricao = semAcento(item.descProduto);
+  return regras.find(regra => descricao.includes(regra.palavra))?.pecas ?? capacidadeCaixaAtual();
+}
+
+function calcularOcupacaoPrateleiras(itens) {
+  const regras = regrasCapacidade();
   const mapa = new Map();
   for (const item of itens) {
     const info = parseEndereco(item.endereco);
     if (!info.valido) continue;
     const chave = `${info.rua}·${info.prateleira}`;
     if (!mapa.has(chave)) {
-      mapa.set(chave, { rua: info.rua, prateleira: info.prateleira, paridade: info.paridade, caixas: new Set(), somaDisponivel: 0, menorDisponivel: Infinity });
+      mapa.set(chave, { rua: info.rua, prateleira: info.prateleira, paridade: info.paridade, caixas: new Map(), somaDisponivel: 0, menorDisponivel: Infinity });
     }
     const entrada = mapa.get(chave);
-    if (item.caixa) entrada.caixas.add(item.caixa);
+    if (item.caixa && !entrada.caixas.has(item.caixa)) entrada.caixas.set(item.caixa, capacidadeDoItem(item, regras));
     entrada.somaDisponivel += Number(item.quantidadeDisponivel) || 0;
     entrada.menorDisponivel = Math.min(entrada.menorDisponivel, Number(item.quantidadeDisponivel) || 0);
   }
   return Array.from(mapa.values()).map(entrada => {
-    const capacidadeTotal = entrada.caixas.size * capacidadeCaixa;
+    const capacidadeTotal = Array.from(entrada.caixas.values()).reduce((soma, pecas) => soma + pecas, 0);
     const pct = capacidadeTotal > 0 ? Math.min(100, (entrada.somaDisponivel / capacidadeTotal) * 100) : 0;
     return { ...entrada, caixasQtd: entrada.caixas.size, capacidadeTotal, pct };
   });
@@ -736,7 +770,8 @@ function nivelOcupacao(pct) {
   return "baixa";
 }
 
-function calcularOcupacaoCaixas(itens, capacidadeCaixa) {
+function calcularOcupacaoCaixas(itens) {
+  const regras = regrasCapacidade();
   const mapa = new Map();
   for (const item of itens) {
     const caixa = txt(item.caixa);
@@ -750,7 +785,8 @@ function calcularOcupacaoCaixas(itens, capacidadeCaixa) {
         endereco: item.endereco,
         somaDisponivel: 0,
         menorDisponivel: Infinity,
-        skus: 0
+        skus: 0,
+        capacidade: capacidadeDoItem(item, regras)
       });
     }
     const entrada = mapa.get(caixa);
@@ -759,13 +795,13 @@ function calcularOcupacaoCaixas(itens, capacidadeCaixa) {
     entrada.skus += 1;
   }
   return Array.from(mapa.values()).map(entrada => {
-    const pct = capacidadeCaixa > 0 ? Math.min(100, (entrada.somaDisponivel / capacidadeCaixa) * 100) : 0;
+    const pct = Math.min(100, (entrada.somaDisponivel / entrada.capacidade) * 100);
     return { ...entrada, pct };
   });
 }
 
-function calcularOcupacaoRuas(itens, capacidadeCaixa, limiteDisponivel) {
-  const porCaixa = calcularOcupacaoCaixas(itens, capacidadeCaixa);
+function calcularOcupacaoRuas(itens, limiteDisponivel) {
+  const porCaixa = calcularOcupacaoCaixas(itens);
   const mapa = new Map();
   for (const entrada of porCaixa) {
     if (!entrada.rua) continue;
@@ -835,8 +871,7 @@ function renderResumoRuas(ruas, ocupacaoPorRua, piorRuaGeral, corredorAtual) {
 
 function renderRankingCaixas(itens) {
   if (!el.localizacaoRankingLista) return;
-  const capacidadeCaixa = capacidadeCaixaAtual();
-  const ranking = calcularOcupacaoCaixas(itens, capacidadeCaixa).sort((a, b) => b.pct - a.pct);
+  const ranking = calcularOcupacaoCaixas(itens).sort((a, b) => b.pct - a.pct);
 
   if (!ranking.length) {
     el.localizacaoRankingLista.innerHTML = `<div class="empty-chart">Sem dados suficientes pra calcular ocupação.</div>`;
@@ -848,7 +883,7 @@ function renderRankingCaixas(itens) {
       <span class="ranking-pos">${index + 1}º</span>
       <span class="ranking-info">
         <strong>${esc(entrada.rua)} · P${String(entrada.prateleira).padStart(2, "0")} · Caixa ${esc(entrada.caixa)}</strong>
-        <small>${esc(entrada.somaDisponivel)} peças de ${esc(capacidadeCaixa)}</small>
+        <small>${esc(entrada.somaDisponivel)} peças de ${esc(entrada.capacidade)}</small>
       </span>
       <span class="ranking-bar"><span style="width:${entrada.pct.toFixed(1)}%"></span></span>
       <strong class="ranking-pct">${entrada.pct.toFixed(0)}%</strong>
@@ -905,10 +940,11 @@ function garantirFallbackCorredor(itensRua, ruaSelecionada) {
 function renderLocalizacao() {
   const gruposLocalizacao = gruposBaixoEstoqueParaLocalizacao();
   const todosOsItens = todosItens(gruposLocalizacao);
-  const capacidadeCaixaGeral = capacidadeCaixaAtual();
-  const todasAsRuas = ruasDisponiveis(todosOsItens);
+  // A visão geral mostra o galpão inteiro, mesmo com busca ativa; a busca só filtra a lista de caixas.
+  const itensGalpao = todosItens(state.grupos);
+  const todasAsRuas = ruasDisponiveis(itensGalpao);
   const limiteDisponivelAtual = Math.max(0, Number(state.config?.limiteDisponivel) || 10);
-  const ocupacaoPorRuaListaGeral = calcularOcupacaoRuas(todosOsItens, capacidadeCaixaGeral, limiteDisponivelAtual);
+  const ocupacaoPorRuaListaGeral = calcularOcupacaoRuas(itensGalpao, limiteDisponivelAtual);
   const ocupacaoPorRuaGeral = {};
   for (const entrada of ocupacaoPorRuaListaGeral) ocupacaoPorRuaGeral[entrada.rua] = entrada;
   const piorRuaGeralAbs = ocupacaoPorRuaListaGeral.slice().sort((a, b) => a.menorDisponivel - b.menorDisponivel)[0]?.rua || null;
@@ -981,7 +1017,7 @@ function renderLocalizacao() {
     : `<div class="empty-chart">Nenhum item nesta rua com os filtros atuais.</div>`;
 
   const ocupacaoPorPrateleira = {};
-  for (const entrada of calcularOcupacaoPrateleiras(itensRua, capacidadeCaixaGeral)) {
+  for (const entrada of calcularOcupacaoPrateleiras(itensRua)) {
     ocupacaoPorPrateleira[entrada.prateleira] = entrada;
   }
 
@@ -1001,6 +1037,7 @@ function renderLocalizacao() {
     ocupacaoPorPrateleira,
     ocupacaoPorRua: ocupacaoPorRuaGeral,
     piorRuaGeral: piorRuaGeralAbs,
+    itensGalpao,
     limiteDisponivel: state.config?.limiteDisponivel ?? 10
   };
   window.dispatchEvent(new CustomEvent("wms-location-data", { detail: window.__WMS_LOCATION_DATA__ }));
@@ -1113,20 +1150,22 @@ function render(dados) {
     ? primeiro.itens.find(item => item.endereco === enderecoPrioridade.endereco)
     : null;
 
-  el.heroTitle.textContent = `${contagem.rupture} produto${contagem.rupture === 1 ? "" : "s"} travando o picking`;
+  el.heroTitle.textContent = contagem.rupture
+    ? `${contagem.rupture} produto${contagem.rupture === 1 ? "" : "s"} para repor agora`
+    : "Nada para repor agora";
 
   const statsPrioridade = itemPrioridade ? `
     <span class="prioridade-stats">
       <span class="prioridade-stat"><b>${esc(itemPrioridade.quantidadeEstoque)}</b><small>peças no endereço</small></span>
       <span class="prioridade-stat"><b>${esc(itemPrioridade.quantidadeReservada)}</b><small>peças reservadas</small></span>
-      <span class="prioridade-stat${primeiro.menorDisponivel < 0 ? " neg" : ""}"><b>${esc(primeiro.menorDisponivel)}</b><small>saldo para picking</small></span>
+      <span class="prioridade-stat${primeiro.menorDisponivel < 0 ? " neg" : ""}"><b>${esc(primeiro.menorDisponivel)}</b><small>disponível para picking</small></span>
     </span>
     ${primeiro.menorDisponivel < 0 ? `<span class="prioridade-alerta">Ação: saldo negativo. Existem ${esc(itemPrioridade.quantidadeReservada)} peças reservadas e só ${esc(itemPrioridade.quantidadeEstoque)} no endereço; faltam ${Math.abs(primeiro.menorDisponivel)} peças para atender o picking.</span>` : ""}
   ` : primeiro ? `<span class="prioridade-stats"><span class="prioridade-stat"><b>${esc(primeiro.menorDisponivel)}</b><small>saldo para picking</small></span></span>` : "";
 
   el.heroPrioridade.innerHTML = primeiro
     ? `
-      <span class="prioridade-tag">Comece por aqui</span>
+      <span class="prioridade-tag">Comece por aqui</span><span class="prioridade-rotulo">o produto mais urgente agora</span>
       <span class="prioridade-produto"><strong>${esc(primeiro.prodcor)}</strong><span>${esc(primeiro.descProduto)}</span></span>
       ${statsPrioridade}
       ${enderecoPrioridade ? `<span class="prioridade-local"><b>Conferir primeiro:</b> ${PIN_SVG}${renderEnderecoDetalhado(enderecoPrioridade.endereco)}${itemPrioridade?.caixa ? ` · Caixa ${esc(itemPrioridade.caixa)}` : ""}</span>` : ""}
@@ -1137,22 +1176,21 @@ function render(dados) {
   const itensZerados = itens.filter(item => item.quantidadeDisponivel <= 0).length;
 
   el.heroBriefing.innerHTML = `
-    <p class="briefing-lead">Peças INK do galpão OD_RJ (zona E4AC) com estoque baixo agora: ${enderecosAfetados} endereço${enderecosAfetados === 1 ? "" : "s"} afetado${enderecosAfetados === 1 ? "" : "s"}, ${itensZerados} já zerado${itensZerados === 1 ? "" : "s"} · planilha atualizada há ${tempoRelativo(dados.arquivoModificadoEm)}. Os cartões abaixo separam por urgência — clique num deles pra filtrar.</p>
+    <p class="briefing-lead">${gruposBaseVisiveis.length} produto${gruposBaseVisiveis.length === 1 ? "" : "s"} com ${limite} peças ou menos, em ${enderecosAfetados} endereço${enderecosAfetados === 1 ? "" : "s"}${itensZerados ? ` (${itensZerados} zerado${itensZerados === 1 ? "" : "s"})` : ""}. Planilha salva há ${tempoRelativo(dados.arquivoModificadoEm)}. Toque num cartão para filtrar.</p>
   `;
 
-  el.gaugeNumber.textContent = contagem.rupture;
   el.ruptura.textContent = contagem.rupture;
-  el.rupturaDesc.textContent = `disponível ≤ ${LIMIAR_RUPTURA} — precisa agir agora`;
+  el.rupturaDesc.textContent = `${LIMIAR_RUPTURA} peças ou menos`;
   el.critico.textContent = contagem.critical;
-  el.criticoDesc.textContent = `disponível de ${LIMIAR_RUPTURA + 1} a ${LIMIAR_CRITICO}`;
+  el.criticoDesc.textContent = `de ${LIMIAR_RUPTURA + 1} a ${LIMIAR_CRITICO} peças`;
   el.atencao.textContent = contagem.attention;
-  el.atencaoDesc.textContent = `disponível de ${LIMIAR_CRITICO + 1} a ${limite}`;
-  el.itens.textContent = dados.totalItens;
-  el.total.textContent = `disponível ≤ ${limite} no filtro (${dados.totalItens} ocorrências)`;
+  el.atencaoDesc.textContent = `de ${LIMIAR_CRITICO + 1} a ${limite} peças`;
+  el.itens.textContent = gruposBaseVisiveis.length;
+  el.total.textContent = `produtos com ${limite} peças ou menos`;
   el.lastUpdate.textContent = `Última leitura: ${fmtData(dados.atualizadoEm)}`;
   el.fileUpdate.textContent = `Arquivo salvo em: ${fmtData(dados.arquivoModificadoEm)}`;
   const resumoLocal = [ruaFiltroAtivo() && `Rua ${ruaFiltroAtivo()}`, prateleiraFiltroAtivo() && `P${prateleiraFiltroAtivo()}`, caixaFiltroAtivo() && `Caixa ${caixaFiltroAtivo()}`].filter(Boolean).join(" / ") || "sem filtro local";
-  el.filterSummary.textContent = `${dados.filtros.galpao} / ${dados.filtros.tipoEnd} / ${dados.filtros.descricaoContem} / disponível <= ${limite} / ${resumoLocal}`;
+  el.filterSummary.textContent = `${dados.filtros.galpao} / ${dados.filtros.tipoEnd} / todos os produtos / disponível <= ${limite} / ${resumoLocal}`;
 
   renderStack(contagem);
   renderHeatmap();
@@ -1174,11 +1212,13 @@ function preencherForms(config) {
     const intervalo = $(`#${prefix}intervalo-minutos`);
     const limite = $(`#${prefix}limite-disponivel`);
     const capacidadeCaixa = $(`#${prefix}capacidade-caixa`);
+    const capacidadePorTipo = $(`#${prefix}capacidade-por-tipo`);
     const excel = $(`#${prefix}atualizar-excel-antes`);
     if (path) path.value = config.planilhaPath || "";
     if (intervalo) intervalo.value = config.intervaloMinutos || 5;
     if (limite) limite.value = config.limiteDisponivel ?? 10;
     if (capacidadeCaixa) capacidadeCaixa.value = config.capacidadeCaixa ?? 50;
+    if (capacidadePorTipo) capacidadePorTipo.value = config.capacidadePorTipo || "";
     if (excel) excel.checked = Boolean(config.atualizarExcelAntesDeLer);
   }
   if (el.localCapacidadeCaixa) el.localCapacidadeCaixa.value = config.capacidadeCaixa ?? 50;
@@ -1211,6 +1251,7 @@ function payloadDoSetup() {
     intervaloMinutos: Number(el.setupIntervalo.value) || 5,
     limiteDisponivel: Number(el.setupLimite.value) || 10,
     capacidadeCaixa: Number(el.setupCapacidadeCaixa.value) || 50,
+    capacidadePorTipo: el.setupCapacidadePorTipo.value,
     atualizarExcelAntesDeLer: el.setupExcel.checked
   };
 }
@@ -1221,6 +1262,7 @@ function payloadDoPainel() {
     intervaloMinutos: Number(el.intervaloMinutos.value) || 5,
     limiteDisponivel: Number(el.limiteDisponivel.value) || 10,
     capacidadeCaixa: Number(el.capacidadeCaixa.value) || 50,
+    capacidadePorTipo: el.capacidadePorTipo.value,
     atualizarExcelAntesDeLer: el.atualizarExcelAntes.checked
   };
 }
@@ -1528,3 +1570,9 @@ if (modoNavegador() && !arquivoSelecionado()) {
 } else {
   await carregar(true);
 }
+
+// Link direto para uma aba: ?aba=produtos ou ?aba=localizacao
+const abaInicial = new URLSearchParams(location.search).get("aba");
+if (["painel", "produtos", "localizacao"].includes(abaInicial)) trocarVisao(abaInicial);
+const corredorInicial = new URLSearchParams(location.search).get("corredor");
+if (corredorInicial) window.dispatchEvent(new CustomEvent("wms-abrir-corredor", { detail: { rua: corredorInicial.toUpperCase() } }));

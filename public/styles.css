@@ -2018,3 +2018,178 @@ tbody tr:nth-child(even) { background: rgba(255,255,255,.025); }
 .help-card .help-list dt { text-transform: none; letter-spacing: 0; font-size: 14px; font-weight: 900; color: var(--text); }
 .help-card .help-list dd { font-weight: 400; font-size: 14px; color: #cfd4da; text-transform: none; letter-spacing: 0; }
 .help-card .help-list dd b { font-weight: 800; }
+
+/* Painel simplificado: título + cartões de urgência, "comece por aqui", fila e análises recolhidas */
+.hero-simples { grid-template-columns: 1fr; }
+.hero-simples .hero-main { min-height: 0; padding: 26px 26px 22px; align-content: start; }
+.hero-simples h1 { font-size: clamp(34px, 4.4vw, 64px); line-height: 1; }
+.hero-simples .hero-briefing { margin-top: 10px; }
+.hero-simples .briefing-lead { margin: 0; max-width: 900px; font-size: 16px; }
+.hero-simples .risk-stack { position: relative; z-index: 1; height: 8px; margin: 18px 0 12px; }
+.hero-simples .signal-grid { position: relative; z-index: 1; margin: 0; }
+.hero-simples .signal { min-height: 0; padding: 14px 16px; border-radius: 10px; background: rgba(255, 255, 255, .03); transition: transform .15s ease, background .15s ease; }
+.hero-simples .signal:hover { transform: translateY(-2px); }
+.hero-simples .signal.attention { opacity: 1; }
+.hero-simples .signal.rupture strong { color: #ff3045; }
+.hero-simples .signal.critical strong { color: var(--amber); }
+.hero-simples .signal.attention strong { color: var(--green); }
+.hero-simples .signal.active { background: rgba(255, 255, 255, .08); border-color: #6b7280; box-shadow: 0 0 0 1px #6b7280 inset; }
+.hero-simples .signal.rupture.active { background: var(--red-soft); border-color: rgba(241, 18, 42, .7); box-shadow: none; }
+.hero-simples .signal strong { font-size: 44px; }
+
+section.hero-prioridade {
+  grid-template-columns: minmax(0, 1fr) minmax(320px, auto);
+  gap: 10px 24px;
+  margin: 0 0 12px;
+  padding: 18px 20px;
+  border-radius: 10px;
+}
+section.hero-prioridade > .prioridade-tag { grid-column: 1; justify-self: start; }
+.prioridade-rotulo { grid-column: 1; margin-top: -4px; color: var(--muted); font-size: 12px; font-weight: 800; }
+section.hero-prioridade > .prioridade-produto { grid-column: 1; flex-direction: column; align-items: flex-start; gap: 4px; }
+section.hero-prioridade > .prioridade-produto strong { font-size: 30px; }
+section.hero-prioridade > .prioridade-stats { grid-column: 2; grid-row: 1 / span 4; align-self: center; grid-template-columns: repeat(3, minmax(100px, 1fr)); }
+section.hero-prioridade .prioridade-stat { padding: 10px 14px; }
+section.hero-prioridade .prioridade-stat b { font-size: 28px; }
+section.hero-prioridade > .prioridade-alerta { grid-column: 1 / -1; }
+section.hero-prioridade > .prioridade-local { grid-column: 1; }
+section.hero-prioridade:empty { display: none; }
+
+.hotlist-panel { margin-bottom: 12px; }
+
+.painel-mais {
+  margin-bottom: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+}
+.painel-mais > summary {
+  padding: 14px 16px;
+  color: var(--soft, #d4d4d8);
+  font-weight: 900;
+  cursor: pointer;
+  list-style: none;
+}
+.painel-mais > summary::-webkit-details-marker { display: none; }
+.painel-mais > summary::before { content: "▸"; display: inline-block; width: 18px; color: #ff4457; transition: transform .15s ease; }
+.painel-mais[open] > summary::before { transform: rotate(90deg); }
+.painel-mais > .heatmap-panel { margin: 0 12px 12px; }
+.painel-graficos { padding: 0 12px 12px; }
+.painel-graficos .side-panels { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.painel-detalhe-titulo { margin: 20px 0 10px; font-size: 20px; }
+
+@media (max-width: 1180px) {
+  section.hero-prioridade { grid-template-columns: 1fr; }
+  section.hero-prioridade > .prioridade-stats { grid-column: 1; grid-row: auto; }
+  .painel-graficos .side-panels { grid-template-columns: 1fr; }
+}
+@media (max-width: 820px) {
+  .hero-simples .signal-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  section.hero-prioridade > .prioridade-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* Fila de reposição em linhas simples */
+.hotlist { gap: 6px; }
+.fila-head, .fila-item {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1.3fr) minmax(0, 1.2fr) 110px;
+  align-items: center;
+  gap: 14px;
+}
+.fila-head { padding: 0 14px 4px; color: var(--muted); font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: .06em; }
+.fila-head span:last-child { text-align: right; }
+.fila-item {
+  width: 100%;
+  padding: 12px 14px;
+  color: var(--text);
+  text-align: left;
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--green);
+  border-radius: 9px;
+  background: var(--panel-soft);
+  transition: background .15s ease, transform .15s ease;
+}
+.fila-item:hover { background: #20242b; transform: translateX(2px); }
+.fila-item.rupture { border-left-color: var(--red); background: linear-gradient(90deg, rgba(241, 18, 42, .12), var(--panel-soft) 60%); }
+.fila-item.critical { border-left-color: var(--amber); }
+.fila-pos { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: rgba(255, 255, 255, .08); font-weight: 950; }
+.fila-item.rupture .fila-pos { background: var(--red); }
+.fila-item.critical .fila-pos { background: var(--amber); color: #1a1204; }
+.fila-produto, .fila-local { display: grid; gap: 3px; min-width: 0; }
+.fila-produto strong, .fila-local strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; }
+.fila-produto small, .fila-local small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; font-weight: 700; }
+.fila-local strong { display: flex; align-items: center; gap: 6px; }
+.fila-local .pin { width: 12px; height: 12px; color: #ff4457; flex-shrink: 0; }
+.fila-qtd { text-align: right; }
+.fila-qtd b { display: block; font-size: 34px; line-height: 1; font-variant-numeric: tabular-nums; }
+.fila-item.rupture .fila-qtd b { color: #ff3045; }
+.fila-item.critical .fila-qtd b { color: var(--amber); }
+.fila-item.attention .fila-qtd b { color: var(--green); }
+.fila-qtd small { color: var(--muted); font-size: 11px; font-weight: 800; }
+@media (max-width: 820px) {
+  .fila-head { display: none; }
+  .fila-head, .fila-item { grid-template-columns: 32px minmax(0, 1fr) 70px; }
+  .fila-local { grid-column: 2 / -1; grid-row: 2; }
+  .fila-qtd { grid-column: 3; grid-row: 1; }
+}
+
+/* 3D: legenda maior e painel "Como ler" */
+.wms-3d-legend .dot.vazio { background: #475569; }
+.wms-3d-legend-colors small, .wms-3d-legend-controls small { font-size: 12px; }
+.wms-3d-legend .dot { width: 11px; height: 11px; }
+.wms-3d-comoler { display: grid; gap: 8px; }
+.wms-3d-comoler-toggle {
+  justify-self: start;
+  padding: 6px 12px;
+  border: 1px solid rgba(253, 224, 71, .5);
+  border-radius: 999px;
+  background: transparent;
+  color: #fde047;
+  font-size: 12px;
+  font-weight: 900;
+}
+.wms-3d-comoler ol {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: passo;
+}
+.wms-3d-comoler li {
+  counter-increment: passo;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, .1);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .04);
+}
+.wms-3d-comoler li b::before { content: counter(passo) ". "; color: #fde047; }
+.wms-3d-comoler li b { display: block; color: #fff; font-size: 13px; font-weight: 900; }
+.wms-3d-comoler li span { display: block; margin-top: 3px; color: #cbd5e1; font-size: 12px; font-weight: 600; line-height: 1.4; }
+@media (max-width: 1180px) {
+  .wms-3d-comoler ol { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Reposição: saldo negativo pinta a linha inteira */
+.tabela-repor tr.linha-faltando td,
+.tabela-repor tr.linha-faltando td.col-extra { color: #9c0006; background: #ffc7ce; }
+.tabela-repor tr.linha-faltando td.falta-cell.faltando { background: #ffb0ba; }
+.tabela-repor tr.linha-faltando:hover td { background: #ffb0ba; }
+
+/* Peças por caixa por tipo de produto */
+textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  background: #0c0e11;
+  font: inherit;
+  font-weight: 700;
+  line-height: 1.5;
+  resize: vertical;
+  color-scheme: dark;
+}
+textarea:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+.config-form .capacidade-tipo { grid-column: 1 / -1; }

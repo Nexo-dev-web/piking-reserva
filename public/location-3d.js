@@ -220,6 +220,42 @@ function makeFloorLabel(texto, { bg = "rgba(244, 63, 94, .9)", fg = "#fff", widt
   return mesh;
 }
 
+// Plaquinha vertical (etiqueta de caixa/prateleira): fundo escuro, texto claro, lida de frente.
+function makePlaca(linhas, { width = 0.9, height = 0.36, destaque = "#94a3b8" } = {}) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = Math.round(512 * (height / width));
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+
+  ctx.fillStyle = "rgba(10, 14, 22, .92)";
+  roundRect(ctx, 0, 0, canvas.width, canvas.height, 22);
+  ctx.fill();
+  ctx.fillStyle = destaque;
+  ctx.fillRect(0, 0, 14, canvas.height);
+
+  const [titulo, sub] = linhas;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "#f8fafc";
+  ctx.font = `900 ${Math.round(canvas.height * (sub ? 0.38 : 0.5))}px Inter, Arial, sans-serif`;
+  ctx.fillText(titulo, 36, canvas.height * (sub ? 0.34 : 0.5), canvas.width - 56);
+  if (sub) {
+    ctx.fillStyle = "#cbd5e1";
+    ctx.font = `700 ${Math.round(canvas.height * 0.28)}px Inter, Arial, sans-serif`;
+    ctx.fillText(sub, 36, canvas.height * 0.74, canvas.width - 56);
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
+  const mesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(width, height),
+    new THREE.MeshBasicMaterial({ map: texture, transparent: true })
+  );
+  return mesh;
+}
+
 function disposeNode(node) {
   if (node.geometry) node.geometry.dispose?.();
   if (node.material) {
@@ -274,20 +310,45 @@ function Legend({ modo }) {
     h(
       "div",
       { className: "wms-3d-legend-colors" },
-      h("span", { className: "dot alta" }), h("small", null, "sem prodcor em baixo estoque"),
-      h("span", { className: "dot media" }), h("small", null, "tem prodcor em atenção"),
-      h("span", { className: "dot baixa" }), h("small", null, "tem prodcor crítico/ruptura")
+      h("span", { className: "dot baixa" }), h("small", null, "2 peças ou menos: repor agora"),
+      h("span", { className: "dot media" }), h("small", null, "3 a 5 peças"),
+      h("span", { className: "dot alta" }), h("small", null, "6 a 10 peças"),
+      modo === "corredor" ? null : h("span", { className: "dot vazio" }),
+      modo === "corredor" ? null : h("small", null, "sem problema")
     ),
-    modo === "corredor"
-      ? h("div", { className: "wms-3d-legend-glossario" }, h("small", null, "Siga as placas no chão: elas mostram a prateleira, o endereço principal e a menor disponibilidade. Clique na caixa para abrir o detalhe completo."))
-      : null,
     h(
       "div",
       { className: "wms-3d-legend-controls" },
       modo === "corredor"
-        ? h("small", null, "Arraste = olhar · Scroll = zoom · WASD/setas = andar · Clique numa caixa pra ver os detalhes")
-        : h("small", null, "Arraste = girar · Scroll = zoom · Clique num pilar pra abrir o corredor")
+        ? h("small", null, "Arraste = olhar em volta · W A S D ou setas = andar · Scroll = ir pra frente/trás · Clique numa caixa = detalhes")
+        : h("small", null, "Arraste = girar · Scroll = zoom · Clique num corredor = entrar nele")
     )
+  );
+}
+
+function ComoLer({ modo, aberto, onToggle }) {
+  const passos = modo === "corredor"
+    ? [
+      ["Você está dentro do corredor", "Prateleiras ímpares de um lado, pares do outro, como no galpão."],
+      ["Cada caixa tem um número em cima", "É quantas peças sobram nela. Vermelho = repor agora."],
+      ["A caixa com contorno amarelo", "É a que você filtrou. Clique em qualquer caixa para ver endereço e código da caixa."],
+      ["Para voltar", "Use \"Ver todos os corredores\" acima do 3D."]
+    ]
+    : [
+      ["Cada fileira é um corredor", "A placa em cima mostra o nome (AC01, AC02...) e quantas caixas precisam de reposição."],
+      ["Cada bloco é uma prateleira", "Ímpares de um lado do corredor, pares do outro. Bloco cinza baixinho = nada faltando ali."],
+      ["Alto e vermelho = urgente", "Cor e altura mostram a caixa com menos peças daquela prateleira."],
+      ["Clique para entrar", "Clique num corredor para andar dentro dele. \"COMECE AQUI\" marca o pior."]
+    ];
+  return h(
+    "div",
+    { className: `wms-3d-comoler${aberto ? " aberto" : ""}` },
+    h("button", { type: "button", className: "wms-3d-comoler-toggle", onClick: onToggle }, aberto ? "Esconder instruções" : "Como ler este 3D"),
+    aberto ? h(
+      "ol",
+      null,
+      passos.map(([titulo, texto]) => h("li", { key: titulo }, h("b", null, titulo), h("span", null, texto)))
+    ) : null
   );
 }
 
@@ -343,7 +404,7 @@ function WarehouseScene({ data }) {
     const dynamicGroup = new THREE.Group();
     scene.add(dynamicGroup);
 
-    const debugGrid = new THREE.GridHelper(60, 60, 0x243042, 0x18202d);
+    const debugGrid = new THREE.GridHelper(80, 40, 0x1c2432, 0x121822);
     debugGrid.position.y = 0.01;
     scene.add(debugGrid);
 
@@ -358,6 +419,7 @@ function WarehouseScene({ data }) {
     const raycaster = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
     let pointerDown = null;
+    let autoRotateParado = false;
     let lookDrag = null;
     const lookState = { yaw: 0, pitch: 0 };
 
@@ -386,13 +448,14 @@ function WarehouseScene({ data }) {
       }
     };
 
+    // Visão geral: o galpão visto de cima. Cada corredor tem duas fileiras (ímpar | corredor | par),
+    // cada prateleira é um bloco. Cor e altura = urgência da caixa com menos peças daquela prateleira.
     const buildOverview = payload => {
       const ruas = Array.isArray(payload?.ruas)
         ? payload.ruas.slice().sort((a, b) => (a.numero || 0) - (b.numero || 0))
         : [];
-      const ocupacaoPorRua = payload?.ocupacaoPorRua || {};
       const piorRuaGeral = payload?.piorRuaGeral || null;
-      const limiteDisponivel = Number(payload?.limiteDisponivel) || 10;
+      const itensGalpao = Array.isArray(payload?.itensGalpao) ? payload.itensGalpao : [];
 
       if (!ruas.length) {
         const empty = makeSprite("Nenhum corredor encontrado com os filtros atuais", { bg: "rgba(153, 27, 27, .85)", fg: "#fff", size: 32, scale: [5.2, 2.2] });
@@ -400,89 +463,138 @@ function WarehouseScene({ data }) {
           empty.position.set(0, 4, 0);
           dynamicGroup.add(empty);
         }
-        return { totalWidth: 10 };
+        return { totalWidth: 10, totalDepth: 10 };
       }
 
-      const spacing = 6.4;
+      const porRua = new Map();
+      for (const item of itensGalpao) {
+        const info = parseEndereco(item.endereco);
+        if (!info.valido) continue;
+        if (!porRua.has(info.rua)) porRua.set(info.rua, { prateleiras: new Map(), repor: new Set() });
+        const entrada = porRua.get(info.rua);
+        const qtd = Number(item.quantidadeDisponivel) || 0;
+        const atual = entrada.prateleiras.get(info.prateleira);
+        if (!atual || qtd < atual.qtd) entrada.prateleiras.set(info.prateleira, { qtd, item });
+        if (qtd <= 2) entrada.repor.add(`${item.caixa}|${item.endereco}`);
+      }
+
+      const maxPrateleira = Math.max(2, ...Array.from(porRua.values()).flatMap(entrada => Array.from(entrada.prateleiras.keys())));
+      const posicoes = Math.ceil(maxPrateleira / 2);
+      const rackW = 1.15;
+      const rackD = 1.25;
+      const aisle = 1.5;
+      const spacing = rackW * 2 + aisle + 2.4;
       const totalWidth = (ruas.length - 1) * spacing;
+      const totalDepth = posicoes * rackD;
       const startX = -totalWidth / 2;
+      const startZ = -totalDepth / 2 + rackD / 2;
 
       const floor = new THREE.Mesh(
-        new THREE.PlaneGeometry(spacing * ruas.length + 8, 16),
-        new THREE.MeshStandardMaterial({ color: 0x0b0f16, roughness: 1 })
+        new THREE.PlaneGeometry(totalWidth + spacing + 6, totalDepth + 14),
+        new THREE.MeshStandardMaterial({ color: 0x0d121b, roughness: 0.95, metalness: 0.05 })
       );
       floor.rotation.x = -Math.PI / 2;
       floor.receiveShadow = true;
       dynamicGroup.add(floor);
 
+      const alturaPorQtd = qtd => (qtd <= 2 ? 3.2 : qtd <= 5 ? 2.1 : 1.25);
+      const corPorQtd = qtd => (qtd <= 2 ? 0xf43f5e : qtd <= 5 ? 0xf59e0b : 0x22c55e);
+
       ruas.forEach((ruaInfo, index) => {
         const rua = ruaInfo.rua;
-        const info = ocupacaoPorRua[rua] || null;
-        const piorPct = typeof info?.piorPct === "number" ? info.piorPct : 0;
-        const mediaPct = typeof info?.mediaPct === "number" ? info.mediaPct : 0;
-        const menorDisponivel = typeof info?.menorDisponivel === "number" ? info.menorDisponivel : limiteDisponivel + 1;
-        const cor = corRisco(menorDisponivel, limiteDisponivel);
-        const ehPior = rua === piorRuaGeral;
+        const dados = porRua.get(rua) || { prateleiras: new Map(), repor: new Set() };
         const x = startX + index * spacing;
-        const alturaBase = 2.6 + ((100 - piorPct) / 100) * 6.6;
+        const ehPior = rua === piorRuaGeral;
 
-        const pillar = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.95, 1.15, alturaBase, 22),
-          new THREE.MeshStandardMaterial({
-            color: cor,
-            emissive: new THREE.Color(cor).multiplyScalar(ehPior ? 0.55 : 0.3),
-            emissiveIntensity: ehPior ? 1.15 : 0.55,
-            metalness: 0.25,
-            roughness: 0.4
-          })
+        const faixa = new THREE.Mesh(
+          new THREE.BoxGeometry(aisle - 0.3, 0.04, totalDepth + 1.2),
+          new THREE.MeshStandardMaterial({ color: ehPior ? 0xf43f5e : 0x1e293b, emissive: ehPior ? 0x5a0d1a : 0x000000, emissiveIntensity: 0.8, roughness: 0.6 })
         );
-        pillar.position.set(x, alturaBase / 2, 0);
-        pillar.castShadow = true;
-        pillar.userData.rua = rua;
-        dynamicGroup.add(pillar);
-        clickTargetsRef.current.push({ mesh: pillar, rua });
+        faixa.position.set(x, 0.02, 0);
+        faixa.userData.rua = rua;
+        dynamicGroup.add(faixa);
+        clickTargetsRef.current.push({ mesh: faixa, rua });
 
-        const base = new THREE.Mesh(
-          new THREE.CylinderGeometry(1.7, 1.7, 0.2, 26),
-          new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.9 })
-        );
-        base.position.set(x, 0.1, 0);
-        dynamicGroup.add(base);
+        for (let p = 1; p <= posicoes * 2; p += 1) {
+          const lado = p % 2 === 1 ? -1 : 1;
+          const z = startZ + (Math.ceil(p / 2) - 1) * rackD;
+          const rx = x + lado * (aisle / 2 + rackW / 2);
+          const dadoPrateleira = dados.prateleiras.get(p);
 
-        const nomeLabel = makeSprite(rua, { bg: ehPior ? "rgba(244, 63, 94, .95)" : "rgba(15, 23, 42, .92)", fg: "#fff", size: 62, scale: [3.6, 1.8] });
-        if (nomeLabel) {
-          nomeLabel.position.set(x, alturaBase + 2.15, 0);
-          dynamicGroup.add(nomeLabel);
+          if (!dadoPrateleira) {
+            const vazio = new THREE.Mesh(
+              new THREE.BoxGeometry(rackW * 0.92, 0.35, rackD * 0.86),
+              new THREE.MeshStandardMaterial({ color: 0x273244, roughness: 0.8, metalness: 0.1 })
+            );
+            vazio.position.set(rx, 0.175, z);
+            vazio.receiveShadow = true;
+            vazio.userData.rua = rua;
+            dynamicGroup.add(vazio);
+            clickTargetsRef.current.push({ mesh: vazio, rua });
+            continue;
+          }
+
+          const cor = corPorQtd(dadoPrateleira.qtd);
+          const altura = alturaPorQtd(dadoPrateleira.qtd);
+          const urgente = dadoPrateleira.qtd <= 2;
+          const bloco = new THREE.Mesh(
+            new THREE.BoxGeometry(rackW * 0.92, altura, rackD * 0.86),
+            new THREE.MeshStandardMaterial({ color: cor, emissive: new THREE.Color(cor), emissiveIntensity: urgente ? 0.45 : 0.18, roughness: 0.35, metalness: 0.15 })
+          );
+          bloco.position.set(rx, altura / 2, z);
+          bloco.castShadow = true;
+          bloco.userData.rua = rua;
+          bloco.userData.item = { ...itemParaPopup(dadoPrateleira.item), quantidadeDisponivel: dadoPrateleira.qtd };
+          dynamicGroup.add(bloco);
+          clickTargetsRef.current.push({ mesh: bloco, rua });
+
+          const aresta = new THREE.LineSegments(
+            new THREE.EdgesGeometry(bloco.geometry),
+            new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.25 })
+          );
+          aresta.position.copy(bloco.position);
+          dynamicGroup.add(aresta);
+
+          if (urgente) pulsesRef.current.push({ kind: "emissive", obj: bloco.material, base: 0.45, speed: 2.6, phase: p * 0.7 + index });
         }
 
-        const detalheTxt = `Pior: Prateleira ${info?.piorPrateleira != null ? String(info.piorPrateleira).padStart(2, "0") : "--"} - só ${menorDisponivel} disponível\n${info?.rupturas ?? 0} de ${info?.totalCaixas ?? 0} caixas em baixo estoque`;
-        const detalhe = makeSprite(detalheTxt, { bg: "rgba(17, 24, 39, .88)", fg: "#e2e8f0", size: 24, scale: [3.1, 1.7] });
-        if (detalhe) {
-          detalhe.position.set(x, alturaBase + 0.85, 0);
-          dynamicGroup.add(detalhe);
+        const reporN = dados.repor.size;
+        const nome = makeSprite(`${rua}\n${reporN ? `${reporN} p/ repor` : "ok"}`, {
+          bg: ehPior ? "rgba(244, 63, 94, .96)" : reporN ? "rgba(15, 23, 42, .94)" : "rgba(21, 128, 61, .9)",
+          fg: "#fff",
+          size: 62,
+          scale: [4.6, 2.3]
+        });
+        if (nome) {
+          nome.position.set(x, 5.4, startZ - rackD);
+          nome.userData.rua = rua;
+          dynamicGroup.add(nome);
+          clickTargetsRef.current.push({ mesh: nome, rua });
         }
 
-        const pctBadge = makeSprite(`${menorDisponivel}`, { bg: `rgba(${(cor >> 16) & 255}, ${(cor >> 8) & 255}, ${cor & 255}, .95)`, fg: "#0b1220", size: 46, scale: [1.35, 0.85] });
-        if (pctBadge) {
-          pctBadge.position.set(x, alturaBase * 0.55, 1.35);
-          dynamicGroup.add(pctBadge);
+        const piso = makeFloorLabel(`ENTRAR NO ${rua}`, { bg: "rgba(15, 23, 42, .92)", fg: "#fff", width: spacing - 1.6, height: 0.9, size: 64 });
+        if (piso) {
+          piso.position.set(x, 0.05, startZ - rackD - 1.6);
+          piso.userData.rua = rua;
+          dynamicGroup.add(piso);
+          clickTargetsRef.current.push({ mesh: piso, rua });
         }
 
         if (ehPior) {
-          const flag = makeSprite("ATACAR AQUI", { bg: "rgba(244, 63, 94, .96)", fg: "#fff", size: 34, scale: [3.0, 1.15] });
+          const flag = makeSprite("COMECE AQUI", { bg: "rgba(253, 224, 71, .97)", fg: "#111827", size: 62, scale: [4.4, 1.6] });
           if (flag) {
-            flag.position.set(x, alturaBase + 3.2, 0);
+            flag.position.set(x, 7.6, startZ - rackD);
             dynamicGroup.add(flag);
-            pulsesRef.current.push({ kind: "scale", obj: flag, base: [3.0, 1.15], speed: 3.4, phase: 0, amount: 0.14 });
+            pulsesRef.current.push({ kind: "scale", obj: flag, base: [4.4, 1.6], speed: 3.4, phase: 0, amount: 0.12 });
           }
-          const beacon = new THREE.PointLight(cor, 2.6, 13, 2);
-          beacon.position.set(x, alturaBase + 1.1, 0.7);
+          const beacon = new THREE.PointLight(0xf43f5e, 3, 16, 2);
+          beacon.position.set(x, 4.2, 0);
           dynamicGroup.add(beacon);
-          pulsesRef.current.push({ kind: "light", obj: beacon, base: 2.6, speed: 3.2, phase: 0.4 });
+          pulsesRef.current.push({ kind: "light", obj: beacon, base: 3, speed: 3.2, phase: 0.4 });
         }
       });
 
-      return { totalWidth };
+      return { totalWidth, totalDepth };
     };
 
     const buildCorredor = payload => {
@@ -509,9 +621,9 @@ function WarehouseScene({ data }) {
       const depthStep = 4.6;
       const startZ = prateleiras.length ? -((prateleiras.length - 1) * depthStep) / 2 : 0;
 
-      const entranceTitle = makeSprite(selectedRua ? `Corredor ${selectedRua}` : "Corredor em foco", { bg: "rgba(244, 63, 94, .9)", fg: "#fff", size: 42, scale: [3.4, 1.5] });
+      const entranceTitle = makeSprite(selectedRua ? `Corredor ${selectedRua}` : "Corredor em foco", { bg: "rgba(244, 63, 94, .9)", fg: "#fff", size: 54, scale: [2.2, 0.7] });
       if (entranceTitle) {
-        entranceTitle.position.set(0, 5.2, startZ + 1.5);
+        entranceTitle.position.set(0, 8.4, startZ - 1.5);
         dynamicGroup.add(entranceTitle);
       }
 
@@ -589,6 +701,19 @@ function WarehouseScene({ data }) {
           focoPos = group.position.clone();
         }
 
+        const qtdCaixa = item.quantidadeDisponivel;
+        const placa = makePlaca(
+          [txt(item.caixa) || "sem caixa", `${qtdCaixa} ${Math.abs(qtdCaixa) === 1 ? "peça" : "peças"} · ${item.info.colunaBase ? `L${item.info.colunaBase}` : ""}`],
+          { width: Math.min(boxW - 0.06, 0.86), height: 0.3, destaque: qtdCaixa <= 2 ? "#f43f5e" : qtdCaixa <= 5 ? "#f59e0b" : "#22c55e" }
+        );
+        if (placa) {
+          placa.rotation.y = Math.PI;
+          placa.position.set(group.position.x, group.position.y - 0.02, group.position.z - boxD / 2 - 0.02);
+          placa.userData.item = popupItem;
+          dynamicGroup.add(placa);
+          clickTargetsRef.current.push({ mesh: placa, item: popupItem });
+        }
+
         const qtdTag = makeSprite(`${item.quantidadeDisponivel}`, {
           bg: item.quantidadeDisponivel <= 2 ? "rgba(244, 63, 94, .95)" : item.quantidadeDisponivel <= 5 ? "rgba(251, 146, 60, .95)" : "rgba(34, 197, 94, .9)",
           fg: "#fff",
@@ -659,17 +784,13 @@ function WarehouseScene({ data }) {
             .sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true }));
           const enderecoPrincipal = enderecosBay[0] || selectedRua;
           const extraEnderecos = enderecosBay.length > 1 ? ` +${enderecosBay.length - 1}` : "";
-          const bayLabelTexto = pct === null
-            ? `P${String(prateleira).padStart(2, "0")} · ${sideKey === "par" ? "par" : "ímpar"}\n${enderecoPrincipal}${extraEnderecos}`
-            : `P${String(prateleira).padStart(2, "0")} · menor ${menorDisponivelBay}\n${enderecoPrincipal}${extraEnderecos}`;
-          const bayLabel = makeSprite(bayLabelTexto, {
-            bg: "rgba(8, 13, 22, .92)",
-            fg: "#f8fafc",
-            size: 14,
-            scale: [1.95, 0.6]
-          });
+          const bayLabel = makePlaca(
+            [`${selectedRua} · Prateleira ${String(prateleira).padStart(2, "0")} (${sideKey})`, menorDisponivelBay === null ? enderecoPrincipal + extraEnderecos : `menor: ${menorDisponivelBay} peça${Math.abs(menorDisponivelBay) === 1 ? "" : "s"} · ${enderecosBay.length} endereço${enderecosBay.length === 1 ? "" : "s"}`],
+            { width: 3.4, height: 0.62, destaque: menorDisponivelBay === null ? "#94a3b8" : menorDisponivelBay <= 2 ? "#f43f5e" : menorDisponivelBay <= 5 ? "#f59e0b" : "#22c55e" }
+          );
           if (bayLabel) {
-            bayLabel.position.set(0, 7.88, 0);
+            bayLabel.rotation.y = Math.PI;
+            bayLabel.position.set(0, 7.25, -1.12);
             bayGroup.add(bayLabel);
           }
 
@@ -819,24 +940,28 @@ function WarehouseScene({ data }) {
       if (modo === "geral") {
         controls.enabled = true;
         walkBoundsRef.current = null;
-        const { totalWidth } = buildOverview(payload);
-        camera.fov = 46;
+        const { totalWidth, totalDepth } = buildOverview(payload);
+        camera.fov = 34;
         camera.updateProjectionMatrix();
-        const spread = Math.max(totalWidth, 10);
-        camera.position.set(0, 11.5 + spread * 0.05, spread * 0.6 + 14);
-        controls.target.set(0, 3.4, 0);
+        const spread = Math.max(totalWidth, totalDepth, 10);
+        camera.position.set(0, spread * 0.9 + 9, spread * 1.1 + 12);
+        controls.target.set(0, 0.8, 0);
         controls.minDistance = 8;
         controls.maxDistance = 95;
+        controls.autoRotate = !autoRotateParado;
+        controls.autoRotateSpeed = 0.45;
         camera.lookAt(controls.target);
         controls.update();
         renderer.domElement.style.cursor = "default";
       } else {
         controls.enabled = false;
+        controls.autoRotate = false;
         const { startZ, focoPos } = buildCorredor(payload);
-        camera.fov = focoPos ? 34 : 42;
+        camera.fov = 55;
         camera.updateProjectionMatrix();
         if (focoPos) {
-          camera.position.set(focoPos.x + 3.6, focoPos.y + 2.6, focoPos.z + 4.4);
+          // Fica no meio do corredor, alguns passos antes da caixa, para ver a prateleira inteira em volta dela.
+          camera.position.set(0, 3.4, Math.max(startZ - 7.5, focoPos.z - 9));
           controls.target.set(focoPos.x, focoPos.y + 0.5, focoPos.z);
           controls.minDistance = 3;
           controls.maxDistance = 60;
@@ -876,6 +1001,8 @@ function WarehouseScene({ data }) {
 
     const onPointerDown = event => {
       pointerDown = { x: event.clientX, y: event.clientY, time: performance.now() };
+      autoRotateParado = true;
+      controls.autoRotate = false;
       if (modeRef.current === "corredor" && event.button === 0) {
         lookDrag = { x: event.clientX, y: event.clientY, moved: false };
         renderer.domElement.setPointerCapture?.(event.pointerId);
@@ -1017,6 +1144,8 @@ function WarehouseScene({ data }) {
         const factor = 0.65 + 0.35 * Math.sin(elapsed * pulse.speed + pulse.phase);
         if (pulse.kind === "light") {
           pulse.obj.intensity = pulse.base * factor;
+        } else if (pulse.kind === "emissive") {
+          pulse.obj.emissiveIntensity = pulse.base * (0.4 + factor);
         } else if (pulse.kind === "scale") {
           const grow = 1 + pulse.amount * (factor - 0.65) / 0.35;
           pulse.obj.scale.set(pulse.base[0] * grow, pulse.base[1] * grow, 1);
@@ -1141,6 +1270,13 @@ function Location3DApp() {
   const [tela, setTela] = useState(false);
   const [itemPopup, setItemPopup] = useState(null);
   const [itemHover, setItemHover] = useState(null);
+  const [comoLer, setComoLer] = useState(() => {
+    try { return localStorage.getItem("wms-3d-como-ler") !== "0"; } catch { return true; }
+  });
+  const alternarComoLer = () => setComoLer(atual => {
+    try { localStorage.setItem("wms-3d-como-ler", atual ? "0" : "1"); } catch {}
+    return !atual;
+  });
   const shellRef = useRef(null);
 
   useEffect(() => {
@@ -1214,8 +1350,8 @@ function Location3DApp() {
         h("p", { className: "tag" }, modo === "corredor" ? "Corredor 3D" : "Visão geral 3D"),
         h("h3", null, modo === "corredor" ? resumo.rua : `${resumo.ruas} corredores`),
         h("p", null, modo === "corredor"
-          ? "Ande pelo corredor pra entender a peça no lugar físico dela."
-          : "Cada pilar é um corredor — quanto mais vermelho e alto, pior a ocupação. O pior de todos pisca em \"Atacar aqui\".")
+          ? "Ande pelo corredor e veja cada caixa no lugar físico dela."
+          : "O galpão visto de cima. Quanto mais alto e vermelho o bloco, mais urgente a reposição naquela prateleira.")
       ),
       modo === "corredor"
         ? h(
@@ -1233,6 +1369,7 @@ function Location3DApp() {
       h("button", { type: "button", className: "wms-3d-fullscreen", onClick: alternarTela, title: tela ? "Sair da tela cheia" : "Ver em tela cheia" }, tela ? "⤢ Sair" : "⛶ Tela cheia")
     ),
     modo === "corredor" ? h("div", { className: "wms-3d-corridor-badge" }, h("small", null, "Você está no"), h("strong", null, resumo.rua)) : null,
+    h(ComoLer, { modo, aberto: comoLer, onToggle: alternarComoLer }),
     h(WarehouseScene, { data: payload }),
     h(Legend, { modo }),
     h(ItemHover, { hover: itemHover }),

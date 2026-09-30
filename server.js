@@ -18,7 +18,8 @@ function configPadrao() {
     intervaloMinutos: 1,
     limiteDisponivel: 10,
     atualizarExcelAntesDeLer: true,
-    capacidadeCaixa: 50
+    capacidadeCaixa: 50,
+    capacidadePorTipo: ""
   };
 }
 
@@ -39,15 +40,10 @@ function salvarConfig(config) {
 const cachePlanilha = { mtimeMs: null, itensBase: null, totalLinhas: 0 };
 
 function lerItensBase(planilha, stat) {
-  if (cachePlanilha.mtimeMs === stat.mtimeMs) {
-    return { itensBase: cachePlanilha.itensBase, totalLinhas: cachePlanilha.totalLinhas };
+  if (cachePlanilha.mtimeMs !== stat.mtimeMs) {
+    Object.assign(cachePlanilha, extrairItensBase(XLSX, XLSX.readFile(planilha, { cellDates: false })), { mtimeMs: stat.mtimeMs });
   }
-
-  const { itensBase, totalLinhas } = extrairItensBase(XLSX, XLSX.readFile(planilha, { cellDates: false }));
-  cachePlanilha.mtimeMs = stat.mtimeMs;
-  cachePlanilha.itensBase = itensBase;
-  cachePlanilha.totalLinhas = totalLinhas;
-  return { itensBase, totalLinhas };
+  return cachePlanilha;
 }
 
 function lerWms({ ignorarLimite = false } = {}) {
@@ -251,13 +247,14 @@ app.post("/api/config", (req, res) => {
   const limiteDisponivel = Math.max(0, Math.min(999999, Number(req.body?.limiteDisponivel) || 10));
   const atualizarExcelAntesDeLer = Boolean(req.body?.atualizarExcelAntesDeLer);
   const capacidadeCaixa = Math.max(1, Math.min(9999, Number(req.body?.capacidadeCaixa) || 50));
+  const capacidadePorTipo = String(req.body?.capacidadePorTipo ?? "").slice(0, 4000);
 
   if (!planilhaPath) {
     res.status(400).json({ erro: "Informe o caminho da planilha." });
     return;
   }
 
-  const config = { planilhaPath, intervaloMinutos, limiteDisponivel, atualizarExcelAntesDeLer, capacidadeCaixa };
+  const config = { planilhaPath, intervaloMinutos, limiteDisponivel, atualizarExcelAntesDeLer, capacidadeCaixa, capacidadePorTipo };
   salvarConfig(config);
   reagendarAtualizacao(config);
   res.json(config);

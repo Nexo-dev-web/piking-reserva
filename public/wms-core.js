@@ -3,8 +3,7 @@
 export const ABA = "WMS_GERAL";
 export const FILTROS_FIXOS = {
   galpao: "OD_RJ",
-  tipoEnd: "E4AC",
-  descricaoContem: "INK"
+  tipoEnd: "E4AC"
 };
 
 export function txt(valor) {
@@ -57,7 +56,7 @@ function normalizarItem(linha, index) {
   };
 }
 
-// Recebe um workbook do SheetJS (XLSX) e devolve só as linhas do picking INK.
+// Recebe um workbook do SheetJS (XLSX) e devolve as linhas do picking (todos os produtos do OD_RJ / E4AC).
 export function extrairItensBase(XLSX, workbook) {
   const sheet = workbook.Sheets[ABA];
   if (!sheet) {
@@ -71,11 +70,7 @@ export function extrairItensBase(XLSX, workbook) {
   const linhas = matriz.slice(1).map(valores => montarLinha(headers, valores));
   const itensBase = linhas
     .map(normalizarItem)
-    .filter(item =>
-      item.galpao === FILTROS_FIXOS.galpao &&
-      item.tipoEnd === FILTROS_FIXOS.tipoEnd &&
-      contem(item.descProduto, FILTROS_FIXOS.descricaoContem)
-    );
+    .filter(item => item.galpao === FILTROS_FIXOS.galpao && item.tipoEnd === FILTROS_FIXOS.tipoEnd);
 
   return { itensBase, totalLinhas: linhas.length };
 }
